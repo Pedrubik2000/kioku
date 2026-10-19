@@ -1,0 +1,17 @@
+# Pure-Python dependencies of anki/aqt. The Termux anki package installs these
+# with pip in its postinst; the app bundles them instead (no network on first
+# run). Compiled dependencies (orjson, markupsafe, rpds-py) come from Termux
+# packages. Keep in sync with TERMUX_PKG_PYTHON_TARGET_DEPS in the anki recipe.
+beautifulsoup4
+decorator
+distro
+flask[async]
+jsonschema
+markdown
+packaging
+protobuf
+requests[socks]
+send2trash
+truststore
+typing_extensions
+waitress

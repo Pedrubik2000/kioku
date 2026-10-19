@@ -1,0 +1,39 @@
+#!/bin/sh
+# Build app/src/main/assets/bootstrap-aarch64.zip from Termux packages.
+#
+#   tools/build_bootstrap.sh [APP_ID]
+#
+# APP_ID defaults to ankideskApplicationId from gradle.properties. Packages come
+# from the official Termux repositories, plus local .debs in local-debs/ (anki,
+# python-markupsafe, python-orjson from krmanik/termux-packages) which take
+# precedence. With APP_ID=io.krmanik.ankidesk, put packages built by
+# tools/build-termux-packages.sh in local-debs/ instead.
+set -eu
+
+cd "$(dirname "$0")/.."
+APP_ID="${1:-$(sed -n 's/^ankideskApplicationId=//p' gradle.properties)}"
+PYVER="${PYVER:-3.14}"
+export SSL_CERT_FILE="${SSL_CERT_FILE:-/etc/ssl/cert.pem}"
+
+ROOTS="anki,jwm,st,dash,termux-exec,xkeyboard-config,ca-certificates,resolv-conf,python-rpds-py"
+# Pulled in by dependencies but never used at runtime; pruned anyway.
+SKIP="perl,libllvm,mesa-vulkan-icd-swrast,gstreamer,gst-plugins-base,gst-plugins-bad,gst-libav,make,make-guile"
+
+echo "== packages for $APP_ID"
+python3 -I tools/fetch_debs.py --roots "$ROOTS" --local local-debs --skip "$SKIP" \
+	--out build/debs --list build/debs-closure.tsv
+# Package name the .debs were built for (com.termux for the official repos).
+python3 -I tools/debs_to_prefix.py --package "${SOURCE_PACKAGE:-com.termux}" --debs build/debs --out build/rootfs-repo
+
+echo "== PyQt6.sip and pure-Python dependencies"
+tools/build_pyqt6_sip.sh build/rootfs-repo/usr "$PYVER" build/pyqt6-sip-overlay
+tools/fetch_python_deps.sh "$PYVER" build/python-deps
+
+# The app installer treats these as already installed.
+mkdir -p build/base-overlay/var/lib/ankidesk
+cp build/debs-closure.tsv build/base-overlay/var/lib/ankidesk/base-packages.tsv
+
+echo "== bootstrap"
+python3 -I tools/build_rootfs.py --src build/rootfs-repo/usr --owners build/rootfs-repo/file-owners.tsv \
+	--extra rootfs-overlay --extra build/python-deps --extra build/pyqt6-sip-overlay --extra build/base-overlay \
+	--package "$APP_ID" --stage build/rootfs-stage --out app/src/main/assets/bootstrap-aarch64.zip
