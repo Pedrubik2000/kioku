@@ -1289,6 +1289,41 @@ def watch_taps(kbd: keyboard.Keyboard) -> None:
     on_readable()
 
 
+# Apps that turn a finger drag into scrolling themselves (ankidesk_touch.py).
+OWN_TOUCH = {"anki", "ankidesk-shell"}
+
+
+def follow_touch_mode() -> None:
+    """In touch-screen mode, give every other app the display's direct touch
+    mode while it is the active window. Otherwise a finger drag arrives as a
+    held mouse button, so a web browser selects text instead of scrolling; with
+    real touch events browsers and GTK/Qt apps scroll with a drag and select
+    with a long press, as on a phone."""
+    try:
+        display = x11.Display()
+    except OSError as e:
+        print("no touch mode switching:", e, file=sys.stderr)
+        return
+    state = {"mode": ""}
+
+    def check() -> None:
+        if read_state(TOUCH_MODE, "touch") != "touch":
+            state["mode"] = ""  # mouse pad: leave it alone
+            return
+        win = display.active()
+        cls = display.wm_class(win).lower() if win else ""
+        mode = "direct" if cls and cls not in OWN_TOUCH else "touch"
+        if mode != state["mode"]:
+            state["mode"] = mode
+            menu.android_request("ankidesk:input/" + mode)
+
+    timer = QTimer(QApplication.instance())
+    timer.setInterval(300)
+    timer.timeout.connect(check)
+    timer.start()
+    check()
+
+
 def restart_wm(states: tuple[list[int], list[int]] | None = None) -> None:
     """jwm -restart, keeping maximized and minimized windows so (JWM forgets).
     `states` (x11.window_states()) defaults to the current ones."""
@@ -1360,6 +1395,7 @@ def main() -> int:
     for f in filters:
         app.installEventFilter(f)
     follow_rotation(shell)
+    follow_touch_mode()
     os.makedirs(theme.CONFIG_DIR, exist_ok=True)
     theme.write_app_settings()
     watcher = QFileSystemWatcher([theme.CONFIG_DIR])

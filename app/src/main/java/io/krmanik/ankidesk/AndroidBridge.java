@@ -55,6 +55,14 @@ final class AndroidBridge {
                         // A tap clicks where the finger is.
                         setTouchMode(ctx, "2");
                         break;
+                    case "input/direct":
+                        // Touch mode while another app than Anki or the desktop is
+                        // active: real touch events, so a drag scrolls a web page
+                        // instead of selecting its text. Not shown as a setting.
+                        ctx.sendBroadcast(new Intent("com.termux.x11.CHANGE_PREFERENCE")
+                                .setPackage(ctx.getPackageName())
+                                .putExtra("touchMode", "3"));
+                        break;
                     case "input/trackpad":
                         // The screen acts as a laptop touchpad moving a cursor.
                         setTouchMode(ctx, "1");

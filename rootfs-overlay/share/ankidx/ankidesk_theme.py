@@ -439,6 +439,9 @@ def app_environment() -> dict[str, str]:
         "KDE_FULL_SESSION": "true",
         "KDE_SESSION_VERSION": "6",
         "GDK_SCALE": str(max(1, round(scale))),
+        # Touch events (the display's direct touch mode for these apps) reach
+        # Firefox only with XInput 2; Qt and GTK use it already.
+        "MOZ_USE_XINPUT2": "1",
     })
     for key in ("QT_QPA_PLATFORMTHEME", "QT_STYLE_OVERRIDE"):
         env.pop(key, None)

@@ -26,6 +26,11 @@ SHELL_CLASS = "ankidesk-shell"
 
 _c_ulong_p = ctypes.POINTER(ctypes.c_ulong)
 
+# Xlib's default error handler ends the process. Windows can close between
+# listing them and reading their properties (BadWindow); such reads come back
+# empty instead.
+_ERROR_HANDLER = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p)(lambda dpy, err: 0)
+
 
 class _ClientMessage(ctypes.Structure):
     _fields_ = [
@@ -74,6 +79,8 @@ class Display:
         x.XFlush.argtypes = [ctypes.c_void_p]
         x.XFree.argtypes = [ctypes.c_void_p]
         x.XCloseDisplay.argtypes = [ctypes.c_void_p]
+        x.XSetErrorHandler.argtypes = [ctypes.c_void_p]
+        x.XSetErrorHandler(ctypes.cast(_ERROR_HANDLER, ctypes.c_void_p))
         self.x = x
         self.dpy = x.XOpenDisplay(None)
         if not self.dpy:
@@ -113,14 +120,17 @@ class Display:
         ids = (ctypes.c_ulong * (len(raw) // ctypes.sizeof(ctypes.c_ulong))).from_buffer_copy(raw)
         out = []
         for wid in ids:
-            _, cls = self._prop(wid, "WM_CLASS")
             _, title = self._prop(wid, "_NET_WM_NAME")
             if not title:
                 _, title = self._prop(wid, "WM_NAME")
-            parts = cls.split(b"\0")
-            out.append(Window(wid, (parts[1] if len(parts) > 1 else parts[0]).decode(errors="replace"),
-                              title.decode(errors="replace")))
+            out.append(Window(wid, self.wm_class(wid), title.decode(errors="replace")))
         return out
+
+    def wm_class(self, win: int) -> str:
+        """The class part of WM_CLASS ("" if the window has none)."""
+        _, cls = self._prop(win, "WM_CLASS")
+        parts = cls.split(b"\0")
+        return (parts[1] if len(parts) > 1 else parts[0]).decode(errors="replace")
 
     def stacking(self) -> list[int]:
         """Ids of the managed windows, bottom first."""
@@ -220,7 +230,8 @@ class _CursorImage(ctypes.Structure):
 
 
 _GENERIC_EVENT = 35
-_XI_RAW_BUTTON_RELEASE = 15
+_XI_RAW_BUTTON_PRESS = 15
+_XI_RAW_TOUCH_END = 24
 _XI_ALL_MASTER_DEVICES = 1
 
 
@@ -256,7 +267,9 @@ class TapWatcher(Display):
             raise OSError("XInput 2 not supported")
         self.opcode = opcode.value
         bits = (ctypes.c_ubyte * 4)()
-        bits[_XI_RAW_BUTTON_RELEASE >> 3] |= 1 << (_XI_RAW_BUTTON_RELEASE & 7)
+        # Touches arrive as touch events, not buttons, in the display's direct touch mode.
+        for evtype in (_XI_RAW_BUTTON_PRESS, _XI_RAW_TOUCH_END):
+            bits[evtype >> 3] |= 1 << (evtype & 7)
         mask = _EventMask(_XI_ALL_MASTER_DEVICES, len(bits), bits)
         xi.XISelectEvents(self.dpy, self.root, ctypes.byref(mask), 1)
         x.XFlush(self.dpy)
@@ -265,7 +278,8 @@ class TapWatcher(Display):
         return self.x.XConnectionNumber(self.dpy)
 
     def taps(self) -> int:
-        """Drain pending events; return how many left-button releases there were."""
+        """Drain pending events; return how many left-button presses and
+        lifted fingers there were."""
         n = 0
         ev = _AnyEvent()
         while self.x.XPending(self.dpy):
@@ -274,8 +288,9 @@ class TapWatcher(Display):
             if ev.type != _GENERIC_EVENT or cookie.extension != self.opcode:
                 continue
             if self.x.XGetEventData(self.dpy, ctypes.byref(cookie)):
-                if cookie.evtype == _XI_RAW_BUTTON_RELEASE and \
-                        ctypes.cast(cookie.data, ctypes.POINTER(_RawEvent)).contents.detail == 1:
+                if cookie.evtype == _XI_RAW_TOUCH_END or (
+                        cookie.evtype == _XI_RAW_BUTTON_PRESS and
+                        ctypes.cast(cookie.data, ctypes.POINTER(_RawEvent)).contents.detail == 1):
                     n += 1
                 self.x.XFreeEventData(self.dpy, ctypes.byref(cookie))
         return n
