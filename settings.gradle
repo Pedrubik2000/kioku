@@ -1,0 +1,10 @@
+rootProject.name = 'anki-desktop-for-android'
+
+include ':app'
+
+// Termux:X11 X server + display Activity, used as a library.
+include ':lorie'
+project(':lorie').projectDir = file('third_party/termux-x11/lorie')
+include ':shell-loader:stub'
+project(':shell-loader').projectDir = file('gradle/empty-shell-loader')
+project(':shell-loader:stub').projectDir = file('third_party/termux-x11/shell-loader/stub')

@@ -1,0 +1,10 @@
+build/
+.gradle/
+local.properties
+*/build/
+app/src/main/assets/bootstrap-*.zip
+.idea/
+*.iml
+__pycache__/
+*.deb
+.DS_Store
