@@ -4,7 +4,7 @@
 Use this with packages built by tools/build-termux-packages.sh, which already
 contain /data/data/<package>/files/usr paths, so no patching is needed.
 
-  tools/debs_to_prefix.py --package io.krmanik.ankidesk \
+  tools/debs_to_prefix.py --package io.ankidesk \
       --debs /path/to/termux-packages/output --out build/rootfs-native
   # -> build/rootfs-native/usr, build/rootfs-native/file-owners.tsv
 """

@@ -1,4 +1,4 @@
-package io.krmanik.ankidesk;
+package io.ankidesk;
 
 import android.content.ActivityNotFoundException;
 import android.content.Context;

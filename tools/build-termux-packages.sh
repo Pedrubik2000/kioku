@@ -1,21 +1,22 @@
 #!/bin/bash
 # Build the runtime's Termux packages for this app's own package name.
 #
-# Termux binaries hardcode /data/data/<package>/files/usr, so for the release
-# id (io.krmanik.ankidesk) every package has to be compiled with
-# TERMUX_APP__PACKAGE_NAME set; prebuilt packages from the Termux repos cannot
-# be used, and build-package.sh builds all dependencies from source.
+# Optional. Termux binaries hardcode /data/data/<package>/files/usr; the
+# official packages are retargeted in place to /data/data/io.ankidesk/file/usr
+# (tools/build_rootfs.py, same path length). Packages compiled with
+# TERMUX_APP__PACKAGE_NAME set need no rewriting and use the normal files/
+# (ankideskRootfsDir=files); build-package.sh builds all dependencies from source.
 #
 # Needs an x86_64 Linux host with Docker, ~150 GB of disk and several hours
 # (qt6-qtwebengine is most of it).
 #
 #   tools/build-termux-packages.sh ~/termux-packages        # anki branch of krmanik/termux-packages
-#   tools/debs_to_prefix.py --package io.krmanik.ankidesk \
+#   tools/debs_to_prefix.py --package io.ankidesk \
 #       --debs ~/termux-packages/output --out build/rootfs-native
 set -euo pipefail
 
 TERMUX_PACKAGES="${1:?path to a termux-packages checkout (anki branch)}"
-APP_ID="${APP_ID:-io.krmanik.ankidesk}"
+APP_ID="${APP_ID:-io.ankidesk}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # Roots of the runtime closure; dependencies are pulled in by build-package.sh.

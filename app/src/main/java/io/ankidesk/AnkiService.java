@@ -1,4 +1,4 @@
-package io.krmanik.ankidesk;
+package io.ankidesk;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -38,8 +38,8 @@ import java.util.Map;
  * </ol>
  */
 public class AnkiService extends Service {
-    static final String ACTION_START = "io.krmanik.ankidesk.START";
-    static final String ACTION_STOP = "io.krmanik.ankidesk.STOP";
+    static final String ACTION_START = "io.ankidesk.START";
+    static final String ACTION_STOP = "io.ankidesk.STOP";
     static final String EXTRA_SAFE_MODE = "safe_mode";
     static final String EXTRA_RESET = "reset_runtime";
 

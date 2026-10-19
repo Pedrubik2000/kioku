@@ -37,12 +37,13 @@ CACHE_DIR = os.path.join(PREFIX, "var/cache/ankidesk")
 INSTALLED = os.path.join(STATE_DIR, "installed.json")
 BASE = os.path.join(STATE_DIR, "base-packages.tsv")
 
-# Packages in the repositories are built for this app data directory. Split
-# so tools/build_rootfs.py, which rewrites the Termux path in every bundled
-# file, leaves it alone. A repo.json in STATE_DIR can point at a repository
-# built for this app's own package name instead.
-SOURCE_ROOT = "/data/data/" + "com" + ".termux"
-TARGET_ROOT = os.path.dirname(os.path.dirname(PREFIX))  # /data/data/<package>
+# Packages in the repositories are built for this rootfs (Termux's files/,
+# which holds usr/). Split so tools/build_rootfs.py, which rewrites the Termux
+# path in every bundled file, leaves it alone. A repo.json in STATE_DIR can
+# point at a repository built for this app's own package name instead
+# ("source_root": its app data directory).
+SOURCE_ROOT = "/data/data/" + "com" + ".termux" + "/files"
+TARGET_ROOT = os.path.dirname(PREFIX)  # /data/data/<package>/<rootfs dir>, same length
 
 REPOS = {
     "main": ("https://packages-cf.termux.dev/apt/termux-main/", "dists/stable/main/binary-aarch64/Packages"),
@@ -53,7 +54,8 @@ try:
     with open(os.path.join(STATE_DIR, "repo.json"), encoding="utf-8") as _fh:
         _conf = json.load(_fh)
     REPOS = {k: tuple(v) for k, v in _conf["repos"].items()}
-    SOURCE_ROOT = _conf.get("source_root", SOURCE_ROOT)
+    if "source_root" in _conf:
+        SOURCE_ROOT = _conf["source_root"] + "/files"
 except FileNotFoundError:
     pass
 
@@ -230,17 +232,19 @@ def _ar_members(data: bytes) -> dict[str, bytes]:
 
 def _patch(data: bytes) -> bytes:
     old, new = SOURCE_ROOT.encode(), TARGET_ROOT.encode()
-    if old == new or old not in data:
+    user = b"/data/user/0/"
+    old_user = old.replace(b"/data/data/", user)
+    if old == new or (old not in data and old_user not in data):
         return data
     if len(old) != len(new):
         raise RuntimeError(f"cannot relocate {SOURCE_ROOT} to {TARGET_ROOT}: lengths differ")
-    return data.replace(old, new)
+    return data.replace(old, new).replace(old_user, new.replace(b"/data/data/", user))
 
 
 def _unpack(deb: bytes) -> list[str]:
     members = _ar_members(deb)
     data = next(v for k, v in members.items() if k.startswith("data.tar"))
-    root = SOURCE_ROOT.lstrip("/") + "/files/usr/"
+    root = SOURCE_ROOT.lstrip("/") + "/usr/"
     files: list[str] = []
     with tarfile.open(fileobj=io.BytesIO(data)) as tar:
         for m in tar.getmembers():

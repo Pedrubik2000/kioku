@@ -1,1 +1,1 @@
--keep class io.krmanik.ankidesk.** { *; }
+-keep class io.ankidesk.** { *; }

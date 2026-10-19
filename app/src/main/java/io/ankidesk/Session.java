@@ -1,4 +1,4 @@
-package io.krmanik.ankidesk;
+package io.ankidesk;
 
 import android.os.Handler;
 import android.os.Looper;

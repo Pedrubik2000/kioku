@@ -5,13 +5,15 @@ Steps:
   1. copy the pulled prefix into a staging dir
   2. drop packages and paths that Anki does not need at runtime
   3. verify every ELF's DT_NEEDED still resolves (prefix or Android system libs)
-  4. rewrite the hardcoded Termux prefix to the app's own data dir
-     (same-length replacement, so ELF offsets stay valid)
+  4. rewrite the hardcoded Termux rootfs (/data/data/com.termux/files) to the
+     app's own (/data/data/<package>/<rootfs-dir>); same-length replacement, so
+     ELF offsets stay valid. A package name one character longer than
+     com.termux takes the rootfs dir "file", two longer "fil", and so on.
   5. write a zip + SYMLINKS.txt + EXECUTABLES.txt for the app to extract
 
 Usage:
   build_rootfs.py --src build/rootfs-pulled/usr --owners build/file-owners.tsv \
-                  --extra rootfs-overlay --package io.krmanik \
+                  --extra rootfs-overlay --package io.ankidesk --rootfs-dir file \
                   --out app/src/main/assets/bootstrap-aarch64.zip
 """
 import argparse
@@ -26,6 +28,8 @@ from collections import Counter, defaultdict
 
 OLD_ROOT = b"/data/data/com.termux"
 OLD_ROOT_USER = b"/data/user/0/com.termux"
+OLD_ROOTFS = OLD_ROOT + b"/files"
+OLD_ROOTFS_USER = OLD_ROOT_USER + b"/files"
 
 # Whole packages that are only pulled in through build-time or desktop
 # integration dependencies (xdg-utils, mesa's llvmpipe, gstreamer backend ...).
@@ -154,17 +158,24 @@ def main():
     ap.add_argument("--extra", action="append", default=[],
                     help="dir overlaid on top of the prefix (launch scripts, configs, Python deps); repeatable")
     ap.add_argument("--package", required=True)
+    ap.add_argument("--rootfs-dir", default="files",
+                    help="name of the rootfs dir in the app's data dir (files for Termux)")
     ap.add_argument("--stage", default="build/rootfs-stage")
     ap.add_argument("--out", required=True)
     ap.add_argument("--keep-going", action="store_true")
     a = ap.parse_args()
 
     new_root = f"/data/data/{a.package}".encode()
-    new_root_user = f"/data/user/0/{a.package}".encode()
+    new_rootfs = f"/data/data/{a.package}/{a.rootfs_dir}".encode()
+    new_rootfs_user = f"/data/user/0/{a.package}/{a.rootfs_dir}".encode()
     # Stock Termux packages can only be retargeted when the new path has the
     # same length. Packages built with TERMUX_APP__PACKAGE_NAME=<package>
     # already contain the right path and need no patching.
-    can_patch = len(new_root) == len(OLD_ROOT)
+    can_patch = len(new_rootfs) == len(OLD_ROOTFS)
+    # A bare app data dir (no /files after it) only keeps its length for a
+    # 10-character name. Only termux-exec has one, as a default it takes from
+    # TERMUX_APP__DATA_DIR at run time (Prefix.environment()).
+    unpatched_bare = []
 
     owners = defaultdict(set)
     for line in open(a.owners, encoding="utf-8"):
@@ -218,7 +229,7 @@ def main():
     for rel, full in sorted(walk(a.stage)):
         if os.path.islink(full):
             target = os.readlink(full)
-            target = target.replace(OLD_ROOT.decode(), new_root.decode())
+            target = target.replace(OLD_ROOTFS.decode(), new_rootfs.decode())
             symlinks.append(f"{target}←{rel}")
             continue
         st = os.stat(full)
@@ -226,16 +237,25 @@ def main():
             executables.append(rel)
         with open(full, "rb") as fh:
             data = fh.read()
-        if new_root != OLD_ROOT and (OLD_ROOT in data or OLD_ROOT_USER in data):
+        if new_rootfs != OLD_ROOTFS and (OLD_ROOT in data or OLD_ROOT_USER in data):
             if not can_patch:
-                sys.exit(f"{rel} contains {OLD_ROOT.decode()}, which can only be rewritten for a "
-                         f"{len(OLD_ROOT) - len(b'/data/data/')}-character package name. Build the "
-                         f"packages with TERMUX_APP__PACKAGE_NAME={a.package} instead.")
-            data = data.replace(OLD_ROOT, new_root).replace(OLD_ROOT_USER, new_root_user)
+                sys.exit(f"{rel} contains {OLD_ROOTFS.decode()}, which can only be rewritten to a path "
+                         f"of the same length; {new_rootfs.decode()} is not. Pick --rootfs-dir to fit, "
+                         f"or build the packages with TERMUX_APP__PACKAGE_NAME={a.package}.")
+            data = data.replace(OLD_ROOTFS, new_rootfs).replace(OLD_ROOTFS_USER, new_rootfs_user)
+            if len(new_root) == len(OLD_ROOT):
+                data = data.replace(OLD_ROOT, new_root).replace(OLD_ROOT_USER, new_root.replace(b"/data/data/", b"/data/user/0/"))
+            for m in re.finditer(re.escape(OLD_ROOT) + b"|" + re.escape(OLD_ROOT_USER), data):
+                if data[m.end():m.end() + 1] == b"/":
+                    sys.exit(f"{rel} has a path under {m.group().decode()} outside files/, "
+                             f"which cannot be rewritten in place")
+                unpatched_bare.append(rel)
             with open(full, "wb") as fh:
                 fh.write(data)
             patched += 1
     print(f"patched prefix in {patched} files, {len(symlinks)} symlinks, {len(executables)} executables")
+    for rel in sorted(set(unpatched_bare)):
+        print(f"  kept the bare {OLD_ROOT.decode()} in {rel} (set from the environment at run time)")
 
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     tmp = a.out + ".tmp"
@@ -243,7 +263,7 @@ def main():
     with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         # First entry, so the app can check the package and size the progress bar
         # before unpacking anything.
-        z.writestr("MANIFEST.txt", f"package={a.package}\nbytes={sum(os.path.getsize(f) for _, f in regular)}\n"
+        z.writestr("MANIFEST.txt", f"package={a.package}\nrootfs={a.rootfs_dir}\nbytes={sum(os.path.getsize(f) for _, f in regular)}\n"
                                    f"files={len(regular)}\n")
         for rel, full in sorted(walk(a.stage)):
             if not os.path.islink(full):

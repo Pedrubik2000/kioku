@@ -1,4 +1,4 @@
-package io.krmanik.ankidesk;
+package io.ankidesk;
 
 import android.content.Context;
 import android.content.pm.PackageInfo;
@@ -40,14 +40,22 @@ final class Prefix {
             "lib/qt6/QtWebEngineProcess", "share/qt6/resources/qtwebengine_resources.pak",
     };
 
+    final String packageName;
+    final String dataDir;
+    /** The rootfs: Termux's files/, holding usr/ (the prefix) and home/. */
     final File files;
     final File prefix;
     final File home;
     final File tmp;
 
     Prefix(Context ctx) {
-        // Must match the prefix baked into the bundled binaries.
-        files = new File("/data/data/" + ctx.getPackageName() + "/files");
+        // Must match the prefix baked into the bundled binaries. Stock Termux
+        // packages are retargeted in place, which keeps every path's length:
+        // the id is one character longer than com.termux, so the rootfs is
+        // "file" instead of "files" (BuildConfig.ROOTFS_DIR, gradle.properties).
+        packageName = ctx.getPackageName();
+        dataDir = ctx.getApplicationInfo().dataDir;
+        files = new File("/data/data/" + packageName + "/" + BuildConfig.ROOTFS_DIR);
         prefix = new File(files, "usr");
         home = new File(files, "home");
         tmp = new File(prefix, "tmp");
@@ -110,11 +118,15 @@ final class Prefix {
         String pkg = manifest.getProperty("package", "");
         if (!pkg.equals(ctx.getPackageName()))
             throw new IOException("This build's runtime was made for '" + pkg + "' but the app is '" + ctx.getPackageName() + "'.");
+        String rootfs = manifest.getProperty("rootfs", "files");
+        if (!rootfs.equals(files.getName()))
+            throw new IOException("This build's runtime lives in '" + rootfs + "/' but the app expects '" + files.getName() + "/'.");
         p.bytesTotal = Long.parseLong(manifest.getProperty("bytes", "0"));
         p.filesTotal = Integer.parseInt(manifest.getProperty("files", "0"));
 
-        // getFilesDir() creates the directory; free space of a missing path reads as 0.
-        ctx.getFilesDir();
+        // Free space of a missing path reads as 0.
+        //noinspection ResultOfMethodCallIgnored
+        files.mkdirs();
         // Room for the unpacked runtime plus the copy being replaced on upgrade.
         long needed = p.bytesTotal + 64L * 1024 * 1024;
         long free = files.getUsableSpace();
@@ -280,6 +292,11 @@ final class Prefix {
         env.put("LANG", "en_US.UTF-8");
         env.put("DISPLAY", ":0");
         env.put("XKB_CONFIG_ROOT", p + "/share/xkeyboard-config-2");
+        // termux-exec was built for com.termux; its own paths come from these.
+        env.put("TERMUX_APP__DATA_DIR", dataDir);
+        env.put("TERMUX_APP__LEGACY_DATA_DIR", "/data/data/" + packageName);
+        env.put("TERMUX__ROOTFS", files.getPath());
+        env.put("TERMUX__PREFIX", p);
         return env;
     }
 
