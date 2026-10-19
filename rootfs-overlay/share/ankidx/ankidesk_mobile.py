@@ -9,87 +9,24 @@
 import os
 
 from aqt import gui_hooks
-from aqt.qt import (
-    QAbstractSpinBox,
-    QApplication,
-    QComboBox,
-    QEvent,
-    QLineEdit,
-    QObject,
-    QPlainTextEdit,
-    QTextEdit,
-    QTimer,
-    QWebEngineScript,
-    QWidget,
-)
+from aqt.qt import QApplication, QWebEngineScript, QWidget
 from aqt.webview import AnkiWebView
 
-from ankidesk_menu import android_request
+from ankidesk_keyboard import Keyboard
+from ankidesk_keyboard import install as install_keyboard
 
 FONT_FACTOR = float(os.environ.get("ANKIDX_FONT_FACTOR", "1.2"))
-class _Keyboard:
-    """Debounced show/hide, so moving focus between two fields does not flicker."""
 
-    def __init__(self) -> None:
-        self.visible = False
-        self.wanted = False
-        self.force = False
-        self.timer = QTimer()
-        self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self._apply)
-
-    def want(self, show: bool, force: bool = False) -> None:
-        self.wanted = show
-        self.force = force
-        self.timer.start(40 if show else 250)
-
-    def _apply(self) -> None:
-        # Hiding is forced after a tap outside any text field, because the
-        # keyboard may have been opened by the user rather than by us.
-        if self.wanted != self.visible or (self.force and not self.wanted):
-            self.visible = self.wanted
-            android_request("ankidesk:keyboard/" + ("show" if self.visible else "hide"))
-
-
-_keyboard: _Keyboard | None = None
-
-
-def _is_text_input(w: QWidget | None) -> bool:
-    if isinstance(w, (QLineEdit, QTextEdit, QPlainTextEdit)):
-        return not w.isReadOnly()
-    if isinstance(w, QAbstractSpinBox):
-        return not w.isReadOnly()
-    if isinstance(w, QComboBox):
-        return w.isEditable()
-    return False
+_keyboard: Keyboard | None = None
 
 
 def _in_webview(w: QWidget | None) -> bool:
+    # Web views report their own focus changes (see _FOCUS_JS).
     while w is not None:
         if isinstance(w, AnkiWebView):
             return True
         w = w.parentWidget()
     return False
-
-
-class _TapOutside(QObject):
-    """Hide the keyboard when a tap lands outside any text field, as on Android."""
-
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.MouseButtonPress and isinstance(obj, QWidget):
-            if not _in_webview(obj) and not _is_text_input(obj) and not _is_text_input(obj.parentWidget()):
-                _keyboard.want(False, force=True)
-        return False
-
-
-_tap_outside: _TapOutside | None = None
-
-
-def _on_focus_changed(old: QWidget | None, new: QWidget | None) -> None:
-    if _in_webview(new):
-        # The page reports its own focus changes (see _FOCUS_JS).
-        return
-    _keyboard.want(_is_text_input(new))
 
 
 # Reports focus changes inside web views. composedPath()[0] reaches into shadow
@@ -126,7 +63,8 @@ def _install_focus_script(web: AnkiWebView) -> None:
 def _on_js_message(handled: tuple[bool, object], message: str, context: object) -> tuple[bool, object]:
     if message.startswith("ankidesk:kbd:"):
         show = message.endswith("1")
-        _keyboard.want(show, force=not show)
+        if _keyboard is not None:
+            _keyboard.want(show, force=not show)
         return True, None
     return handled
 
@@ -153,9 +91,6 @@ def _on_will_set_content(web_content, context) -> None:
 
 
 def setup() -> None:
-    global _keyboard
-    _keyboard = _Keyboard()
-
     original_init = AnkiWebView.__init__
 
     def init(self: AnkiWebView, *args, **kwargs) -> None:
@@ -167,7 +102,7 @@ def setup() -> None:
     gui_hooks.webview_will_set_content.append(_on_will_set_content)
 
     def connect_focus() -> None:
-        global _tap_outside
+        global _keyboard
         app = QApplication.instance()
         # Menus, dialogs and lists use the widget font, which stays small even
         # with Anki's UI scale; web content is sized by the scale alone.
@@ -177,8 +112,6 @@ def setup() -> None:
         else:
             font.setPixelSize(round(font.pixelSize() * FONT_FACTOR))
         app.setFont(font)
-        app.focusChanged.connect(_on_focus_changed)
-        _tap_outside = _TapOutside()
-        app.installEventFilter(_tap_outside)
+        _keyboard = install_keyboard(app, skip=_in_webview)
 
     gui_hooks.main_window_did_init.append(connect_focus)
