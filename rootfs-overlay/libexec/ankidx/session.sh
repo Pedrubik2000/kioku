@@ -22,9 +22,20 @@ export QT_QUICK_BACKEND=software
 export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-gpu-compositing --disable-dev-shm-usage --disable-features=Vulkan --in-process-gpu --no-zygote --renderer-process-limit=1 --process-per-site --touch-events=enabled"
 export QTWEBENGINE_DISABLE_SANDBOX=1
 
-# Window manager: every window maximized, a bottom task bar to switch between
-# Anki's windows (main, Browse, Add ...).
-cp -f "$PREFIX/share/ankidx/jwmrc" "$HOME/.jwmrc"
+# Large cursors drawn for the phone (ankidesk_cursors.py; generated once per
+# runtime, so an app update brings new ones).
+export XCURSOR_PATH="$PREFIX/share/icons"
+export XCURSOR_THEME=kioku
+export XCURSOR_SIZE=64
+if [ ! -f "$XCURSOR_PATH/kioku/index.theme" ]; then
+	QT_QPA_PLATFORM=offscreen python "$PREFIX/share/ankidx/ankidesk_cursors.py" "$XCURSOR_PATH/kioku" \
+		>"$TMPDIR/cursors.log" 2>&1
+fi
+
+# Window manager: every window maximized, a bottom dock to switch between
+# windows. The config is generated with the chosen wallpaper.
+python "$PREFIX/share/ankidx/ankidesk_theme.py" jwmrc >"$TMPDIR/theme.log" 2>&1 \
+	|| cp -f "$PREFIX/share/ankidx/jwmrc" "$HOME/.jwmrc"
 jwm >"$TMPDIR/jwm.log" 2>&1 &
 
 # After an app update, reinstall the apps the user had added.
@@ -32,4 +43,7 @@ if [ -f "$PREFIX/../apps-to-restore.json" ]; then
 	python "$PREFIX/share/ankidx/ankidesk_pkg.py" restore >"$TMPDIR/restore.log" 2>&1 &
 fi
 
-exec python "$PREFIX/share/ankidx/launch_anki.py" "$@"
+# Anki is an app on the desktop: closing it returns to the desktop. The
+# session lasts as long as the desktop shell, which exits on "Power off".
+python "$PREFIX/share/ankidx/launch_anki.py" "$@" >"$TMPDIR/anki.log" 2>&1 &
+exec python "$PREFIX/share/ankidx/ankidesk_shell.py"

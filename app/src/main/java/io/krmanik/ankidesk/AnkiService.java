@@ -34,9 +34,9 @@ import java.util.Map;
  * <ol>
  * <li>unpack the runtime if it is missing or damaged,</li>
  * <li>start the X server (Termux:X11 through app_process),</li>
- * <li>start the session (window manager + Anki) and wait for Anki's main window,</li>
+ * <li>start the session (window manager, desktop shell, Anki) and wait for it to be up,</li>
  * <li>restart after a crash, give up with a readable error after repeated ones,</li>
- * <li>tear everything down when the user quits Anki.</li>
+ * <li>tear everything down when the user powers off the desktop.</li>
  * </ol>
  */
 public class AnkiService extends Service {
@@ -112,7 +112,7 @@ public class AnkiService extends Service {
             if (stopRequested || outcome == Outcome.USER_QUIT)
                 break;
             if (outcome == Outcome.FAILED_TO_START) {
-                Session.fail("Anki did not start.", logs());
+                Session.fail("The desktop did not start.", logs());
                 break;
             }
             // Crashed after it was up: restart, unless it keeps happening.
@@ -120,10 +120,10 @@ public class AnkiService extends Service {
             crashTimes.removeIf(t -> now - t > RESTART_WINDOW_MS);
             crashTimes.add(now);
             if (crashTimes.size() > MAX_RESTARTS) {
-                Session.fail("Anki stopped unexpectedly several times.", logs());
+                Session.fail("The desktop stopped unexpectedly several times.", logs());
                 break;
             }
-            Session.set(Session.State.STARTING, "Anki stopped unexpectedly, restarting…");
+            Session.set(Session.State.STARTING, "The desktop stopped unexpectedly, restarting…");
         }
 
         boolean failed = Session.state == Session.State.FAILED;
@@ -153,7 +153,7 @@ public class AnkiService extends Service {
             if (!startXServer(env) && !startXServer(env))
                 return Outcome.FAILED_TO_START;
 
-            Session.set(Session.State.STARTING, safeMode ? "Starting Anki (safe mode)…" : "Starting Anki…");
+            Session.set(Session.State.STARTING, safeMode ? "Starting desktop (Anki in safe mode)…" : "Starting desktop…");
             // Android blocks execve() on files in app data for targetSdk >= 29, so
             // the first process goes through the system linker; libtermux-exec
             // then does the same for everything it starts.
@@ -233,7 +233,8 @@ public class AnkiService extends Service {
     }
 
     private String logs() {
-        return "== session.log ==\n" + Prefix.tail(new File(prefix.tmp, "session.log"), 40)
+        return "== session.log ==\n" + Prefix.tail(new File(prefix.tmp, "session.log"), 30)
+                + "\n== anki.log ==\n" + Prefix.tail(new File(prefix.tmp, "anki.log"), 30)
                 + "\n== x11.log ==\n" + Prefix.tail(new File(prefix.tmp, "x11.log"), 15);
     }
 

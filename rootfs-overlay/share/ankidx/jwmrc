@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
-<!-- JWM config tuned for a phone.
+<!-- JWM config tuned for a phone, styled like Cutefish/Deepin (dark glass,
+     blue accent; see ankidesk_theme.py for the same palette in the shell).
      - Main windows (Anki, Browse, Add) open maximized above a bottom dock.
      - Dialogs (About, Preferences, message boxes) stay centered, on screen and
        on top of their parent, and always have a title bar with a close button,
        so nothing can end up hidden or unclosable.
-     - Dock: "Apps" (app grid, software center, settings: ankidesk_shell.py),
-       open windows (tap to switch), clock.
+     - Desktop: ankidesk_shell.py (launcher, software center, settings).
+     - Dock: show desktop, open windows (tap to switch), keyboard, clock.
+     ~/.jwmrc is generated from this file by ankidesk_theme.py (wallpaper).
      Sizes are in X pixels, which are the phone's physical pixels. -->
 <JWM>
     <Group>
@@ -24,66 +26,109 @@
         <Option>notitle</Option>
     </Group>
     <Group>
+        <!-- The shell is the desktop: below every window, no title bar, not in
+             the task list. The dock's apps button minimizes all windows to show it. -->
+        <Class>ankidesk-shell</Class>
+        <Option>layer:below</Option>
+        <Option>maximized</Option>
+        <Option>notitle</Option>
+        <Option>noborder</Option>
+        <Option>nolist</Option>
+    </Group>
+    <Group>
         <Class>st-256color</Class>
         <Option>maximized</Option>
     </Group>
 
-
     <!-- Bottom dock: on a portrait phone width is the scarce axis. -->
-    <Tray x="0" y="-1" height="104" autohide="off" layer="above">
-        <TrayButton label="  Apps  ">exec:ankidesk-apps</TrayButton>
-        <TaskList maxwidth="420"/>
+    <Tray x="0" y="-1" height="132" autohide="off" layer="above">
+        <Spacer width="12"/>
+        <TrayButton icon="/data/data/com.termux/files/usr/share/ankidx/theme/kioku.svg"
+            popup="Desktop">showdesktop</TrayButton>
+        <Spacer width="12"/>
+        <TaskList maxwidth="380" height="104"/>
+        <TrayButton icon="/data/data/com.termux/files/usr/share/ankidx/theme/keyboard.svg"
+            popup="Keyboard">exec:xdg-open ankidesk:keyboard/toggle</TrayButton>
         <Clock format="%H:%M"/>
+        <Spacer width="12"/>
     </Tray>
 
     <WindowStyle decorations="flat">
-        <Font>DejaVu Sans:bold:pixelsize=32</Font>
-        <Height>84</Height>
-        <Width>2</Width>
-        <Corner>0</Corner>
-        <Foreground>#F2E6EE</Foreground>
-        <Background>#3D2A38</Background>
-        <Outline>#2C001E</Outline>
+        <Font>DejaVu Sans:bold:pixelsize=30</Font>
+        <Height>92</Height>
+        <Width>3</Width>
+        <Corner>18</Corner>
+        <Foreground>#8A94A8</Foreground>
+        <Background>#141A2A</Background>
+        <Outline>#232B3F</Outline>
         <Opacity>1.0</Opacity>
         <Active>
-            <Foreground>#FFFFFF</Foreground>
-            <Background>#5E2750</Background>
-            <Outline>#E95420</Outline>
+            <Foreground>#F4F6FB</Foreground>
+            <Background>#1C2438</Background>
+            <Outline>#2E8BFF</Outline>
             <Opacity>1.0</Opacity>
         </Active>
     </WindowStyle>
     <TrayStyle decorations="flat">
-        <Font>DejaVu Sans:bold:pixelsize=32</Font>
-        <Background>#2C001E</Background>
-        <Foreground>#FFFFFF</Foreground>
-        <Opacity>0.95</Opacity>
+        <Font>DejaVu Sans:bold:pixelsize=30</Font>
+        <Background>#0E1322</Background>
+        <Foreground>#F4F6FB</Foreground>
+        <Outline>#1E2638</Outline>
+        <Opacity>1.0</Opacity>
     </TrayStyle>
-    <TaskListStyle list="all" group="false">
-        <Font>DejaVu Sans:pixelsize=30</Font>
-        <Foreground>#FFFFFF</Foreground>
-        <Background>#2C001E</Background>
+    <TaskListStyle list="all" group="false" labeled="true">
+        <Font>DejaVu Sans:pixelsize=28</Font>
+        <Foreground>#A8B3C7</Foreground>
+        <Background>#0E1322</Background>
+        <Outline>#0E1322</Outline>
         <Active>
             <Foreground>#FFFFFF</Foreground>
-            <Background>#E95420</Background>
+            <Background>#22355C</Background>
+            <Outline>#2E8BFF</Outline>
         </Active>
     </TaskListStyle>
-    <MenuStyle decorations="flat">
-        <Font>DejaVu Sans:pixelsize=38</Font>
-        <Foreground>#FFFFFF</Foreground>
-        <Background>#3D2A38</Background>
+    <TrayButtonStyle decorations="flat">
+        <Font>DejaVu Sans:bold:pixelsize=30</Font>
+        <Foreground>#F4F6FB</Foreground>
+        <Background>#0E1322</Background>
+        <Outline>#0E1322</Outline>
         <Active>
             <Foreground>#FFFFFF</Foreground>
-            <Background>#E95420</Background>
+            <Background>#22355C</Background>
+            <Outline>#2E8BFF</Outline>
+        </Active>
+    </TrayButtonStyle>
+    <MenuStyle decorations="flat">
+        <Font>DejaVu Sans:pixelsize=36</Font>
+        <Foreground>#F4F6FB</Foreground>
+        <Background>#1A2133</Background>
+        <Outline>#2B3550</Outline>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#2E8BFF</Background>
         </Active>
         <Opacity>1.0</Opacity>
     </MenuStyle>
+    <PopupStyle>
+        <Font>DejaVu Sans:pixelsize=28</Font>
+        <Foreground>#F4F6FB</Foreground>
+        <Background>#1A2133</Background>
+        <Outline>#2B3550</Outline>
+    </PopupStyle>
     <ClockStyle>
         <Font>DejaVu Sans:bold:pixelsize=32</Font>
-        <Foreground>#FFFFFF</Foreground>
+        <Foreground>#F4F6FB</Foreground>
+        <Background>#0E1322</Background>
     </ClockStyle>
 
+    <ButtonClose>/data/data/com.termux/files/usr/share/ankidx/theme/close.svg</ButtonClose>
+    <ButtonMax>/data/data/com.termux/files/usr/share/ankidx/theme/max.svg</ButtonMax>
+    <ButtonMaxActive>/data/data/com.termux/files/usr/share/ankidx/theme/restore.svg</ButtonMaxActive>
+    <ButtonMin>/data/data/com.termux/files/usr/share/ankidx/theme/min.svg</ButtonMin>
+    <DefaultIcon>/data/data/com.termux/files/usr/share/ankidx/theme/window.svg</DefaultIcon>
+
     <Desktops width="1" height="1">
-        <Background type="gradient">#77216F:#2C001E</Background>
+        <Background type="scale">/data/data/com.termux/files/usr/share/ankidx/theme/wallpapers/aurora.svg</Background>
     </Desktops>
     <FocusModel>click</FocusModel>
     <SnapMode distance="10">border</SnapMode>

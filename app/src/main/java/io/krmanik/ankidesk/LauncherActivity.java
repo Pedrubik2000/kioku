@@ -98,7 +98,7 @@ public class LauncherActivity extends Activity implements Session.Listener {
             case STARTING:
             case IDLE:
                 bar.setIndeterminate(true);
-                status.setText(Session.message.isEmpty() ? "Starting Anki…" : Session.message);
+                status.setText(Session.message.isEmpty() ? "Starting Kioku…" : Session.message);
                 detail.setText("");
                 break;
             case READY:

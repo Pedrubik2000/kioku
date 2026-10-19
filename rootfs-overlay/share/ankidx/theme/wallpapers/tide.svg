@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 2340" preserveAspectRatio="xMidYMid slice">
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#021024"/><stop offset="0.5" stop-color="#06345A"/><stop offset="1" stop-color="#0A5C7A"/></linearGradient>
+<radialGradient id="bk" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#7DE3F4" stop-opacity="0.35"/><stop offset="1" stop-color="#7DE3F4" stop-opacity="0"/></radialGradient>
+<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#38BDF8" stop-opacity="0.45"/><stop offset="1" stop-color="#38BDF8" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="1080" height="2340" fill="url(#sky)"/>
+<ellipse cx="760" cy="900" rx="700" ry="600" fill="url(#glow)"/>
+<circle cx="178" cy="840" r="64" fill="url(#bk)" />
+<circle cx="517" cy="366" r="75" fill="url(#bk)" />
+<circle cx="872" cy="662" r="55" fill="url(#bk)" />
+<circle cx="255" cy="153" r="46" fill="url(#bk)" />
+<circle cx="632" cy="219" r="76" fill="url(#bk)" />
+<circle cx="251" cy="383" r="23" fill="url(#bk)" />
+<circle cx="1077" cy="889" r="81" fill="url(#bk)" />
+<circle cx="665" cy="184" r="43" fill="url(#bk)" />
+<circle cx="537" cy="266" r="87" fill="url(#bk)" />
+<circle cx="398" cy="305" r="77" fill="url(#bk)" />
+<circle cx="135" cy="1078" r="52" fill="url(#bk)" />
+<circle cx="596" cy="493" r="54" fill="url(#bk)" />
+<circle cx="202" cy="187" r="81" fill="url(#bk)" />
+<circle cx="254" cy="930" r="35" fill="url(#bk)" />
+<path d="M-80 1150 C 200 1000, 500 1300, 760 1160 S 1080 1030, 1160 1130 L1160 2400 L-80 2400 Z" fill="#0EA5B7" fill-opacity=".92"/>
+<path d="M-80 1270 C 200 1126, 500 1420, 760 1280 S 1080 1150, 1160 1250 L1160 2400 L-80 2400 Z" fill="#0891B2" fill-opacity=".92"/>
+<path d="M-80 1390 C 200 1252, 500 1540, 760 1400 S 1080 1270, 1160 1370 L1160 2400 L-80 2400 Z" fill="#0E7490" fill-opacity=".92"/>
+<path d="M-80 1510 C 200 1378, 500 1660, 760 1520 S 1080 1390, 1160 1490 L1160 2400 L-80 2400 Z" fill="#155E75" fill-opacity=".92"/>
+<path d="M-80 1630 C 200 1504, 500 1780, 760 1640 S 1080 1510, 1160 1610 L1160 2400 L-80 2400 Z" fill="#164E63" fill-opacity=".92"/>
+<path d="M-80 1750 C 200 1630, 500 1900, 760 1760 S 1080 1630, 1160 1730 L1160 2400 L-80 2400 Z" fill="#123E52" fill-opacity=".92"/>
+<path d="M-80 1870 C 200 1756, 500 2020, 760 1880 S 1080 1750, 1160 1850 L1160 2400 L-80 2400 Z" fill="#0C2F42" fill-opacity=".92"/>
+<path d="M-80 1990 C 200 1882, 500 2140, 760 2000 S 1080 1870, 1160 1970 L1160 2400 L-80 2400 Z" fill="#082234" fill-opacity=".92"/>
+<path d="M-80 2110 C 200 2008, 500 2260, 760 2120 S 1080 1990, 1160 2090 L1160 2400 L-80 2400 Z" fill="#051726" fill-opacity=".92"/>
+</svg>

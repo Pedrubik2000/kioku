@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 2340" preserveAspectRatio="xMidYMid slice">
+<defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E1238"/><stop offset="0.35" stop-color="#5B2470"/><stop offset="0.55" stop-color="#C2477A"/><stop offset="0.68" stop-color="#F7906A"/><stop offset="0.75" stop-color="#FFC38A"/></linearGradient>
+<linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF4D6"/><stop offset="1" stop-color="#FFB070"/></linearGradient>
+<radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FFD3A0" stop-opacity="0.6"/><stop offset="1" stop-color="#FFD3A0" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="1080" height="2340" fill="url(#sky)"/>
+<circle cx="673" cy="519" r="1.2" fill="#FFFFFF" fill-opacity="0.84"/>
+<circle cx="838" cy="174" r="1.2" fill="#FFFFFF" fill-opacity="0.88"/>
+<circle cx="122" cy="328" r="1.6" fill="#FFFFFF" fill-opacity="0.52"/>
+<circle cx="110" cy="175" r="1.6" fill="#FFFFFF" fill-opacity="0.54"/>
+<circle cx="197" cy="607" r="3.0" fill="#FFFFFF" fill-opacity="0.36"/>
+<circle cx="861" cy="97" r="3.0" fill="#FFFFFF" fill-opacity="0.34"/>
+<circle cx="2" cy="610" r="1.6" fill="#FFFFFF" fill-opacity="0.79"/>
+<circle cx="1037" cy="116" r="1.6" fill="#FFFFFF" fill-opacity="0.45"/>
+<circle cx="1038" cy="377" r="1.6" fill="#FFFFFF" fill-opacity="0.38"/>
+<circle cx="1046" cy="138" r="3.0" fill="#FFFFFF" fill-opacity="0.46"/>
+<circle cx="390" cy="116" r="1.6" fill="#FFFFFF" fill-opacity="0.43"/>
+<circle cx="358" cy="572" r="1.2" fill="#FFFFFF" fill-opacity="0.67"/>
+<circle cx="764" cy="46" r="2.2" fill="#FFFFFF" fill-opacity="0.82"/>
+<circle cx="519" cy="221" r="3.0" fill="#FFFFFF" fill-opacity="0.58"/>
+<circle cx="190" cy="179" r="1.2" fill="#FFFFFF" fill-opacity="0.91"/>
+<circle cx="386" cy="283" r="3.0" fill="#FFFFFF" fill-opacity="0.51"/>
+<circle cx="625" cy="6" r="1.2" fill="#FFFFFF" fill-opacity="0.75"/>
+<circle cx="674" cy="668" r="1.2" fill="#FFFFFF" fill-opacity="0.78"/>
+<circle cx="1004" cy="659" r="2.2" fill="#FFFFFF" fill-opacity="0.61"/>
+<circle cx="964" cy="176" r="3.0" fill="#FFFFFF" fill-opacity="0.33"/>
+<circle cx="808" cy="558" r="2.2" fill="#FFFFFF" fill-opacity="0.28"/>
+<circle cx="1021" cy="64" r="2.2" fill="#FFFFFF" fill-opacity="0.61"/>
+<circle cx="392" cy="104" r="2.2" fill="#FFFFFF" fill-opacity="0.9"/>
+<circle cx="589" cy="219" r="2.2" fill="#FFFFFF" fill-opacity="0.46"/>
+<circle cx="863" cy="439" r="2.2" fill="#FFFFFF" fill-opacity="0.95"/>
+<circle cx="174" cy="34" r="3.0" fill="#FFFFFF" fill-opacity="0.27"/>
+<circle cx="800" cy="241" r="2.2" fill="#FFFFFF" fill-opacity="0.57"/>
+<circle cx="455" cy="39" r="1.2" fill="#FFFFFF" fill-opacity="0.81"/>
+<circle cx="361" cy="145" r="1.6" fill="#FFFFFF" fill-opacity="0.69"/>
+<circle cx="851" cy="75" r="3.0" fill="#FFFFFF" fill-opacity="0.51"/>
+<circle cx="63" cy="294" r="1.6" fill="#FFFFFF" fill-opacity="0.57"/>
+<circle cx="1079" cy="597" r="3.0" fill="#FFFFFF" fill-opacity="0.92"/>
+<circle cx="744" cy="222" r="2.2" fill="#FFFFFF" fill-opacity="0.45"/>
+<circle cx="436" cy="103" r="3.0" fill="#FFFFFF" fill-opacity="0.83"/>
+<circle cx="574" cy="126" r="3.0" fill="#FFFFFF" fill-opacity="0.86"/>
+<circle cx="195" cy="344" r="2.2" fill="#FFFFFF" fill-opacity="0.29"/>
+<circle cx="859" cy="249" r="1.2" fill="#FFFFFF" fill-opacity="0.78"/>
+<circle cx="393" cy="493" r="2.2" fill="#FFFFFF" fill-opacity="0.83"/>
+<circle cx="286" cy="687" r="2.2" fill="#FFFFFF" fill-opacity="0.92"/>
+<circle cx="367" cy="125" r="1.2" fill="#FFFFFF" fill-opacity="0.58"/>
+<ellipse cx="300" cy="1480" rx="600" ry="420" fill="url(#glow)"/>
+<circle cx="300" cy="1480" r="150" fill="url(#sun)"/>
+<path d="M-60 1500 C 250 1355, 520 1721, 760 1460 S 1080 1380, 1140 1440 L1140 2400 L-60 2400 Z" fill="#C2410C"/>
+<path d="M-60 1660 C 250 1543, 520 1879, 760 1620 S 1080 1540, 1140 1600 L1140 2400 L-60 2400 Z" fill="#9A3412"/>
+<path d="M-60 1820 C 250 1796, 520 2019, 760 1780 S 1080 1700, 1140 1760 L1140 2400 L-60 2400 Z" fill="#7C2D12"/>
+<path d="M-60 1990 C 250 1849, 520 2105, 760 1950 S 1080 1870, 1140 1930 L1140 2400 L-60 2400 Z" fill="#4C1D0E"/>
+<path d="M-60 2150 C 250 2020, 520 2368, 760 2110 S 1080 2030, 1140 2090 L1140 2400 L-60 2400 Z" fill="#26100A"/>
+</svg>
