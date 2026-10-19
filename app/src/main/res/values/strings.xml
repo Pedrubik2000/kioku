@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Anki Desktop</string>
-    <string name="setup_title">Setting up Anki Desktop</string>
+    <string name="app_name">Kioku</string>
+    <string name="setup_title">Setting up Kioku</string>
     <string name="setup_extracting">Unpacking runtime… %1$d%%</string>
     <string name="setup_failed">Setup failed: %1$s</string>
-    <string name="notification_running">Anki is running</string>
+    <string name="notification_running">Kioku desktop is running</string>
     <string name="notification_stop">Stop</string>
 </resources>

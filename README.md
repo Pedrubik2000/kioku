@@ -1,12 +1,13 @@
-# Anki Desktop for Android
+# Kioku: Anki desktop for Android
 
 Runs the real Anki desktop app (Qt 6 + Qt WebEngine, built for Termux) on Android as a
-normal app: tap the icon and Anki opens. No Termux, no Termux:X11, no setup.
+normal app: tap the Kioku icon and a small Linux desktop starts with Anki open.
+No Termux, no Termux:X11, no setup. (Kioku, 記憶, is Japanese for "memory".)
 
 ## How it works
 
-It is set up like a Linux kiosk that boots straight into one app
-(`init → display manager → session → app`, restarted on failure):
+It is set up like a small Linux distribution that boots into its desktop
+(`init → display manager → session → desktop + apps`, restarted on failure):
 
 ```
 LauncherActivity      splash: unpack progress, start-up status, errors + recovery
@@ -15,9 +16,10 @@ AnkiService           supervisor (foreground service)
    ├─ unpack assets/bootstrap-aarch64.zip → files/usr   (first run, after updates, or if damaged)
    ├─ app_process … com.termux.x11.CmdEntryPoint :0     X server (termux-x11 "lorie")
    ├─ linker64 usr/bin/dash usr/libexec/ankidx/session.sh
-   │     ├─ jwm                                         window manager, left dock
-   │     └─ python usr/share/ankidx/launch_anki.py      Anki; signals when its main window is up
-   ├─ Anki quits → stop everything;  Anki/X crash → restart (max 2 in 3 min), then show the error
+   │     ├─ jwm                                         window manager, bottom dock
+   │     ├─ python usr/share/ankidx/launch_anki.py      Anki, started with the session
+   │     └─ python usr/share/ankidx/ankidesk_shell.py   the desktop; signals when it is up
+   ├─ Power off → stop everything;  desktop/X crash → restart (max 2 in 3 min), then show the error
    └─ xdg-open requests → Android ACTION_VIEW
 com.termux.x11.MainActivity   the display (touch → mouse, soft keyboard, extra keys)
 HomeDocumentsProvider         files/home in Android's Files app (no bundled file manager)
@@ -29,23 +31,38 @@ If start-up fails, the splash shows the reason and the log tail with **Retry**,
 
 ## Desktop and apps
 
-A phone-style shell (`rootfs-overlay/share/ankidx/ankidesk_shell.py`, PyQt6, no extra size),
-opened from the dock's **Apps** button:
+The desktop (`rootfs-overlay/share/ankidx/ankidesk_shell.py`, PyQt6, no extra size) is styled
+after Cutefish and Deepin: wallpaper, frosted cards, one blue accent, gradient "squircle" app
+icons drawn from SVG (`ankidesk_theme.py`). It sits below every window; the Kioku button in the
+dock minimizes the windows to show it. Closing Anki returns to the desktop, where the Anki icon
+opens it again; **Settings → Power off** closes Anki (which saves the collection) and ends the
+session.
 
-* **Apps**: Anki, Terminal (`st`) and every installed app, with icons from their `.desktop` files.
+* **Apps**: clock, search, Anki, Terminal (`st`) and every installed app, with icons from their
+  `.desktop` files.
 * **Software**: optional native Linux apps, installed on demand from the Termux repositories
   (Files 8 MB, Text Editor 4 MB, QTerminal 3 MB, Web Browser/Falkon 49 MB, Image Viewer 6 MB,
   Archives 7 MB, System Monitor 1 MB). They appear in Apps once installed and disappear when
   removed. After an app update the runtime is replaced and they are reinstalled automatically.
-* **Settings**: touch as tap-to-click or mouse pad, keyboard, display settings, storage.
+* **Settings**: wallpaper (six built in, or any picture from Android's gallery or the home
+  folder), touch as tap-to-click or mouse pad, keyboard, display settings, storage, restart
+  desktop, power off.
 
 The installer (`ankidesk_pkg.py`, also `ankidesk-pkg install|remove|list` in a terminal) resolves
 dependencies against the bundled packages, checks SHA256, unpacks into the prefix and rewrites
 the Termux path; it does not run maintainer scripts.
 
 Window manager: JWM. Main windows maximized, dialogs centered/on top with a close button, bottom
-dock. Qt is scaled so the short side of the screen is ~480 logical pixels; text fields open the
-Android keyboard and tapping elsewhere closes it.
+dock (desktop, open windows, keyboard, clock). `~/.jwmrc` is generated from `share/ankidx/jwmrc`
+with the chosen wallpaper. Qt is scaled so the short side of the screen is ~480 logical pixels.
+
+Keyboard: text fields open the Android keyboard and tapping elsewhere closes it. Anki and the
+desktop follow Qt's focus (`ankidesk_keyboard.py`, plus a script in Anki's web views). For other
+apps the desktop watches taps (XInput2 raw events) and opens the keyboard when the pointer then is
+a text cursor (I-beam), e.g. in a terminal (`ankidesk_x11.py`).
+
+Cursors: no cursor theme is bundled, so `ankidesk_cursors.py` draws a large "kioku" Xcursor theme
+on first start, and the display draws 16 px core cursors (JWM, `st`) three times larger.
 
 ## Application id and the runtime
 
@@ -98,7 +115,7 @@ For the release id, build the packages on x86_64 Linux with
 `ankideskApplicationId=io.krmanik.ankidesk` and run
 `SOURCE_PACKAGE=io.krmanik.ankidesk tools/build_bootstrap.sh`.
 
-Logs on the device: `files/usr/tmp/x11.log`, `files/usr/tmp/session.log`.
+Logs on the device: `files/usr/tmp/x11.log`, `files/usr/tmp/session.log`, `files/usr/tmp/anki.log`.
 
 ## Known gaps in the Termux packages
 
@@ -114,6 +131,8 @@ Kept in `patches/termux-x11.patch`; apply with `git -C third_party/termux-x11 ap
 
 * `third_party/termux-x11/lorie/version.gradle`: NDK version can be overridden with the
   `termuxX11NdkVersion` Gradle property.
+* `third_party/termux-x11/lorie/src/main/cpp/lorie/renderer.cpp`: core cursors (≤ 32 px) are
+  drawn three times larger.
 * `third_party/termux-x11/lorie/src/main/cpp/recipes/xkbcomp.cmake`: a `case-compat` include
   dir with bionic's `xlocale.h`, which on case-insensitive filesystems (macOS) otherwise
   resolves to libX11's `X11/Xlocale.h`.
@@ -134,5 +153,5 @@ Kept in `patches/termux-x11.patch`; apply with `git -C third_party/termux-x11 ap
 ## Licenses
 
 Anki is AGPL-3.0, termux-x11 and the Termux packages are GPL-3.0 and others. Distributing the APK
-means offering the corresponding source. "Anki" is a trademark of Ankitects; a public release
-needs a distinct name.
+means offering the corresponding source. "Anki" is a trademark of Ankitects, hence the app's own
+name, Kioku.
