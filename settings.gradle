@@ -1,4 +1,4 @@
-rootProject.name = 'anki-desktop-for-android'
+rootProject.name = 'kioku'
 
 include ':app'
 

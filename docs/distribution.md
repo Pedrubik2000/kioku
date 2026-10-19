@@ -15,9 +15,9 @@
 ## Licenses
 
 Anki is AGPL-3.0, termux-x11 and the Termux packages are GPL-3.0 and others. Distributing the APK
-means offering the corresponding source: this repository, termux-x11 (`third_party/`,
-`patches/`), and the Termux package recipes (termux/termux-packages and the `anki` branch of
-krmanik/termux-packages).
+means offering the corresponding source: this repository, termux-x11 (`third_party/`, the
+`kioku` branch of krmanik/termux-x11), and the Termux package recipes (termux/termux-packages
+and the `anki` branch of krmanik/termux-packages).
 
 "Anki" is a trademark of Ankitects, hence the app's own name, Kioku (記憶, Japanese for
 "memory"). Kioku is not affiliated with or endorsed by Ankitects.

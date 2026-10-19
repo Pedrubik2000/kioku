@@ -79,7 +79,7 @@ def _ssl_context() -> ssl.SSLContext:
 
 
 def _fetch(url: str, progress: Progress = _no_progress, label: str = "") -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "Debian APT-HTTP/1.3 (anki-desktop-for-android)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Debian APT-HTTP/1.3 (kioku)"})
     with urllib.request.urlopen(req, context=_ssl_context(), timeout=60) as r:
         total = int(r.headers.get("Content-Length") or 0)
         buf = io.BytesIO()

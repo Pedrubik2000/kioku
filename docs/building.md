@@ -40,9 +40,8 @@ Requirements: Android SDK, NDK `30.0.14904198` (see `gradle.properties`), JDK 21
 
 ```sh
 git submodule update --init third_party/termux-x11
-git -C third_party/termux-x11 apply ../../patches/termux-x11.patch
 git -C third_party/termux-x11 submodule update --init --depth 1
-# macOS only, see "Local changes to third-party code"
+# macOS only, see the end of "Local changes to third-party code"
 (cd third_party/termux-x11/lorie/src/main/cpp && for p in pixman:pixman xkbcomp:xkbcomp \
     libxkbfile:xkbfile libx11:x11 libxtrans:Xtrans xserver:xserver libepoxy:libepoxy; do
     patch -p1 -N -d "${p%%:*}" -i "$PWD/patches/${p##*:}.patch" </dev/null; done)
@@ -111,8 +110,9 @@ perl, mesa + LLVM (Qt and Chromium run without OpenGL), gstreamer.
 
 ## Local changes to third-party code
 
-Kept in `patches/termux-x11.patch`; apply with
-`git -C third_party/termux-x11 apply ../../patches/termux-x11.patch`.
+`third_party/termux-x11` is the `kioku` branch of
+[krmanik/termux-x11](https://github.com/krmanik/termux-x11/tree/kioku), a fork of
+termux/termux-x11 with these commits on top:
 
 * `third_party/termux-x11/lorie/version.gradle`: NDK version can be overridden with the
   `termuxX11NdkVersion` Gradle property.
@@ -121,6 +121,17 @@ Kept in `patches/termux-x11.patch`; apply with
 * `third_party/termux-x11/lorie/src/main/cpp/recipes/xkbcomp.cmake`: a `case-compat` include
   dir with bionic's `xlocale.h`, which on case-insensitive filesystems (macOS) otherwise
   resolves to libX11's `X11/Xlocale.h`.
-* termux-x11 applies its submodule patches at CMake configure time with
-  `patch -R --dry-run || patch …`. Apple's `/usr/bin/patch` exits 0 on a failed reverse dry run,
-  so on macOS nothing gets patched (`'GL/gl.h' file not found`); apply them by hand as above.
+
+To move to a newer termux-x11:
+
+```sh
+cd third_party/termux-x11
+git fetch upstream && git rebase upstream/master    # remotes: origin = fork, upstream = termux
+git push --force-with-lease origin kioku
+cd ../.. && git add third_party/termux-x11 && git commit -m "Update termux-x11"
+```
+
+On macOS: termux-x11 applies its own submodule patches at CMake configure time with
+`patch -R --dry-run || patch …`. Apple's `/usr/bin/patch` exits 0 on a failed reverse dry run,
+so nothing gets patched (`'GL/gl.h' file not found`); apply them by hand as in
+[Local build](#local-build).

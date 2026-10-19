@@ -47,10 +47,9 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache/CodeQL
           df -h /
 
-      - name: termux-x11 sources and local patches
+      - name: termux-x11 sources (kioku branch of krmanik/termux-x11)
         run: |
           git submodule update --init third_party/termux-x11
-          git -C third_party/termux-x11 apply ../../patches/termux-x11.patch
           git -C third_party/termux-x11 submodule update --init --depth 1
 
       - uses: actions/setup-java@v4

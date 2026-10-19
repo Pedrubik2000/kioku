@@ -28,7 +28,7 @@ REPO_BASE = {
 
 def fetch(url):
     # The Termux CDN rejects Python's default User-Agent.
-    req = urllib.request.Request(url, headers={"User-Agent": "Debian APT-HTTP/1.3 (anki-desktop-for-android)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "Debian APT-HTTP/1.3 (kioku)"})
     with urllib.request.urlopen(req) as r:
         return r.read()
 

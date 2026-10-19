@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="../../releases/latest"><img alt="Download the latest APK" src="https://img.shields.io/github/v/release/krmanik/anki-desktop-for-android?label=download%20APK&style=for-the-badge&color=2E8BFF"></a>
+  <a href="../../releases/latest"><img alt="Download the latest APK" src="https://img.shields.io/github/v/release/krmanik/kioku?label=download%20APK&style=for-the-badge&color=2E8BFF"></a>
 </p>
 
 <p align="center">

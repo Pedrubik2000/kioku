@@ -38,7 +38,7 @@ SUFFIX="$TAG-aarch64-linux-android"
 DIST="$SITE/pyqt6_sip-$SIP_VERSION.dist-info"
 mkdir -p "$DIST"
 printf 'Metadata-Version: 2.1\nName: PyQt6-sip\nVersion: %s\n' "$SIP_VERSION" > "$DIST/METADATA"
-printf 'Wheel-Version: 1.0\nGenerator: anki-desktop-for-android\nRoot-Is-Purelib: false\nTag: %s-%s-android_%s_arm64_v8a\n' \
+printf 'Wheel-Version: 1.0\nGenerator: kioku\nRoot-Is-Purelib: false\nTag: %s-%s-android_%s_arm64_v8a\n' \
 	"$(echo "$TAG" | sed 's/cpython-/cp/')" "$(echo "$TAG" | sed 's/cpython-/cp/')" "$API" > "$DIST/WHEEL"
 printf 'pip\n' > "$DIST/INSTALLER"
 echo "built $SITE/PyQt6/sip.$SUFFIX.so"
