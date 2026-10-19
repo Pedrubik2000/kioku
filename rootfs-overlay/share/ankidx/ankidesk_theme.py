@@ -1,6 +1,6 @@
 """Look of the Kioku desktop: colours, line icons, app icons and wallpapers.
 
-Modelled on Cutefish and Deepin: a deep blue wallpaper, frosted dark cards,
+Modelled on Cutefish and Deepin: a mountain wallpaper, frosted dark cards,
 one blue accent, rounded "squircle" app icons with a gradient and a white
 glyph. Everything is SVG drawn by Qt's svg plugin, which the runtime already
 has; no icon theme is bundled.
@@ -20,7 +20,7 @@ PREFIX = os.environ.get("PREFIX", "/data/data/com.termux/files/usr")
 HOME = os.environ.get("HOME", os.path.join(os.path.dirname(PREFIX), "home"))
 THEME_DIR = os.path.join(PREFIX, "share/ankidx/theme")
 WALLPAPER_DIR = os.path.join(THEME_DIR, "wallpapers")
-DEFAULT_WALLPAPER = os.path.join(WALLPAPER_DIR, "aurora.svg")
+DEFAULT_WALLPAPER = os.path.join(WALLPAPER_DIR, "alpine.svg")
 CONFIG_DIR = os.path.join(HOME, ".config/kioku")
 WALLPAPER_SETTING = os.path.join(CONFIG_DIR, "wallpaper")
 CUSTOM_WALLPAPER = os.path.join(CONFIG_DIR, "custom-wallpaper.png")
@@ -201,7 +201,7 @@ def image_tile(path: str, size: int) -> QPixmap | None:
 def builtin_wallpapers() -> list[tuple[str, str]]:
     """(name, path) of the bundled wallpapers, the default first."""
     names = sorted(f[:-4] for f in os.listdir(WALLPAPER_DIR) if f.endswith(".svg"))
-    names.sort(key=lambda n: n != "aurora")
+    names.sort(key=lambda n: n + ".svg" != os.path.basename(DEFAULT_WALLPAPER))
     return [(n.capitalize(), os.path.join(WALLPAPER_DIR, n + ".svg")) for n in names]
 
 

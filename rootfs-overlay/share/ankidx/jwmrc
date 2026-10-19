@@ -27,7 +27,8 @@
     </Group>
     <Group>
         <!-- The shell is the desktop: below every window, no title bar, not in
-             the task list. The dock's apps button minimizes all windows to show it. -->
+             the task list. The dock's desktop button minimizes all windows to show it
+             (ankidesk_x11.py desktop) and brings them back on the next tap. -->
         <Class>ankidesk-shell</Class>
         <Option>layer:below</Option>
         <Option>maximized</Option>
@@ -45,7 +46,7 @@
     <Tray x="0" y="-1" height="132" autohide="off" layer="above">
         <Spacer width="12"/>
         <TrayButton icon="/data/data/com.termux/files/usr/share/ankidx/theme/home.svg"
-            popup="Desktop">showdesktop</TrayButton>
+            popup="Desktop">exec:/data/data/com.termux/files/usr/bin/python /data/data/com.termux/files/usr/share/ankidx/ankidesk_x11.py desktop</TrayButton>
         <Spacer width="12"/>
         <TaskList maxwidth="380" height="104"/>
         <TrayButton icon="/data/data/com.termux/files/usr/share/ankidx/theme/keyboard.svg"
@@ -138,7 +139,7 @@
     <DefaultIcon>/data/data/com.termux/files/usr/share/ankidx/theme/window.svg</DefaultIcon>
 
     <Desktops width="1" height="1">
-        <Background type="scale">/data/data/com.termux/files/usr/share/ankidx/theme/wallpapers/aurora.svg</Background>
+        <Background type="scale">/data/data/com.termux/files/usr/share/ankidx/theme/wallpapers/alpine.svg</Background>
     </Desktops>
     <FocusModel>click</FocusModel>
     <SnapMode distance="10">border</SnapMode>

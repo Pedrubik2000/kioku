@@ -2,6 +2,9 @@
 
 * Lists the open windows the window manager manages and asks it to activate or
   close one, so the desktop can switch to Anki instead of starting it twice.
+* The dock's desktop button (`python ankidesk_x11.py desktop`): minimizes every
+  window to show the desktop, and on the next tap brings them back with the
+  window that was active on top.
 * TapWatcher: notices every tap on the screen (XInput2 raw events) and tells
   whether the pointer then shows a text cursor (I-beam), which is how the
   desktop knows to open the keyboard for apps that are not ours (terminals,
@@ -11,10 +14,15 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
+import sys
 from dataclasses import dataclass
 
 PREFIX = os.environ.get("PREFIX", "/data/data/com.termux/files/usr")
+TMPDIR = os.environ.get("TMPDIR", os.path.join(PREFIX, "tmp"))
+SHOWN_DESKTOP = os.path.join(TMPDIR, "ankidesk-shown-desktop.json")
+SHELL_CLASS = "ankidesk-shell"
 
 _c_ulong_p = ctypes.POINTER(ctypes.c_ulong)
 
@@ -113,6 +121,15 @@ class Display:
             out.append(Window(wid, (parts[1] if len(parts) > 1 else parts[0]).decode(errors="replace"),
                               title.decode(errors="replace")))
         return out
+
+    def stacking(self) -> list[int]:
+        """Ids of the managed windows, bottom first."""
+        ids = self.atoms(self.root, "_NET_CLIENT_LIST_STACKING")
+        return ids or [w.id for w in self.windows()]
+
+    def active(self) -> int:
+        ids = self.atoms(self.root, "_NET_ACTIVE_WINDOW")
+        return ids[0] if ids else 0
 
     def _message(self, win: int, name: str, *data: int) -> None:
         ev = _Event()
@@ -354,6 +371,45 @@ def ensure_maximized(win: int) -> None:
         pass
 
 
+def toggle_desktop() -> None:
+    """Minimize every window (the desktop shows), or when none is open, bring
+    back the ones minimized that way, the one that was active on top. JWM's
+    own showdesktop also minimizes the desktop itself and loses track once a
+    window is opened from the desktop."""
+    with Display() as d:
+        apps = {w.id for w in d.windows() if w.wm_class != SHELL_CLASS}
+        order = [i for i in d.stacking() if i in apps]
+        shown = [i for i in order if not d.is_hidden(i)]
+        if shown:
+            active = d.active()
+            state = {"windows": shown, "active": active if active in shown else shown[-1]}
+            try:
+                with open(SHOWN_DESKTOP, "w", encoding="utf-8") as fh:
+                    json.dump(state, fh)
+            except OSError:
+                pass
+            for wid in reversed(shown):
+                d.minimize(wid)
+            return
+        try:
+            with open(SHOWN_DESKTOP, encoding="utf-8") as fh:
+                state = json.load(fh)
+        except (OSError, ValueError):
+            state = {}
+        back = [i for i in state.get("windows", []) if i in apps]
+        if not back and order:
+            back = [order[-1]]  # minimized some other way: the topmost one
+        active = state.get("active")
+        if active not in back:
+            active = back[-1] if back else 0
+        # Activating restores a minimized window; the active one goes last, on top.
+        for wid in back:
+            if wid != active:
+                d.activate(wid)
+        if active:
+            d.activate(active)
+
+
 def find(predicate) -> list[Window]:
     try:
         with Display() as d:
@@ -377,3 +433,10 @@ def close_window(win: int) -> None:
             d.close_window(win)
     except OSError:
         pass
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["desktop"]:
+        toggle_desktop()
+    else:
+        sys.exit("usage: ankidesk_x11.py desktop")
