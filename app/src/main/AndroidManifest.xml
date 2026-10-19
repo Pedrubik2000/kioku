@@ -48,6 +48,13 @@
             android:name="com.termux.x11.utils.KeyInterceptor"
             tools:node="remove" />
 
+        <!-- Picture picker for the desktop wallpaper; no UI of its own. -->
+        <activity
+            android:name=".PickWallpaperActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <service
             android:name=".AnkiService"
             android:exported="false"

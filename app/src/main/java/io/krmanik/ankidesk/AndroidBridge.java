@@ -69,6 +69,9 @@ final class AndroidBridge {
                         start(ctx, new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                                 Uri.fromParts("package", ctx.getPackageName(), null)));
                         break;
+                    case "pick-wallpaper":
+                        start(ctx, new Intent(ctx, PickWallpaperActivity.class));
+                        break;
                     case "phone-apps":
                         start(ctx, new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME));
                         break;
