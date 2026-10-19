@@ -1,0 +1,142 @@
+# Builds the Kioku APK (runtime + app) and publishes it to a GitHub release.
+#
+# - Push a tag like v0.2.0: builds and attaches Kioku-0.2.0-arm64.apk to the
+#   release of that tag (created if needed).
+# - Run it by hand (Actions → Release APK → Run workflow): builds and keeps the
+#   APK as a workflow artifact; give a tag to publish it to that release too.
+#
+# Signing: add these repository secrets to sign with your own key. Keep the same
+# key for every release, or Android refuses to update an installed Kioku.
+#   KIOKU_KEYSTORE_BASE64    base64 of the .jks file (base64 -w0 kioku.jks)
+#   KIOKU_KEYSTORE_PASSWORD  store password
+#   KIOKU_KEY_ALIAS          key alias
+#   KIOKU_KEY_PASSWORD       key password (if different from the store password)
+# Without them the APK is signed with a throwaway debug key.
+name: Release APK
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish to (empty: build only)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      NDK_VERSION: "30.0.14904198"
+      # tools/build_bootstrap.sh defaults to macOS's bundle path.
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/share/swift /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: termux-x11 sources and local patches
+        run: |
+          git submodule update --init third_party/termux-x11
+          git -C third_party/termux-x11 apply ../../patches/termux-x11.patch
+          git -C third_party/termux-x11 submodule update --init --depth 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Android NDK and CMake
+        run: |
+          sdkmanager --install "ndk;$NDK_VERSION" "cmake;3.22.1" > /dev/null
+          echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache Termux packages
+        uses: actions/cache@v4
+        with:
+          path: build/debs
+          key: termux-debs-${{ hashFiles('tools/build_bootstrap.sh', 'tools/fetch_debs.py') }}-${{ github.run_id }}
+          restore-keys: termux-debs-${{ hashFiles('tools/build_bootstrap.sh', 'tools/fetch_debs.py') }}-
+
+      - name: Build the runtime (bootstrap-aarch64.zip)
+        run: tools/build_bootstrap.sh
+
+      - name: Version
+        id: version
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tag="$GITHUB_REF_NAME"; else tag="$INPUT_TAG"; fi
+          if [ -n "$tag" ]; then version="${tag#v}"; else version="0.0.0-${GITHUB_SHA::7}"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KIOKU_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KIOKU_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KIOKU_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KIOKU_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No KIOKU_KEYSTORE_BASE64 secret; the APK is signed with a debug key."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/kioku.jks"
+          {
+            echo "KIOKU_KEYSTORE=$RUNNER_TEMP/kioku.jks"
+            echo "KIOKU_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "KIOKU_KEY_ALIAS=$KEY_ALIAS"
+            echo "KIOKU_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build the APK
+        run: |
+          ./gradlew --no-daemon :app:assembleRelease \
+            -PkiokuVersionName="${{ steps.version.outputs.version }}" \
+            -PkiokuVersionCode="$GITHUB_RUN_NUMBER"
+          mkdir -p dist
+          apk="dist/Kioku-${{ steps.version.outputs.version }}-arm64.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          (cd dist && sha256sum ./*.apk > SHA256SUMS.txt)
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kioku-${{ steps.version.outputs.version }}
+          path: dist/
+          compression-level: 0
+
+      - name: Publish the release
+        if: steps.version.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Kioku ${{ steps.version.outputs.version }}
+          files: |
+            dist/*.apk
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
+          body: |
+            **Install:** download `Kioku-${{ steps.version.outputs.version }}-arm64.apk` on your phone and open it
+            (allow installing from your browser or file manager when Android asks).
+            Needs a 64-bit ARM phone (arm64-v8a), Android 7 or newer and about 1 GB of free storage.
+            The first start unpacks the runtime, which takes about a minute.
