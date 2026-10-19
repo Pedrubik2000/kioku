@@ -1,3 +1,31 @@
+diff --git a/lorie/src/main/cpp/lorie/renderer.cpp b/lorie/src/main/cpp/lorie/renderer.cpp
+index 06f3432..d6edf59 100644
+--- a/lorie/src/main/cpp/lorie/renderer.cpp
++++ b/lorie/src/main/cpp/lorie/renderer.cpp
+@@ -1273,15 +1273,18 @@ void Renderer::drawRegion(GLuint id, float x0, float y0, float x1, float y1, flo
+ }
+ 
+ void Renderer::drawCursor(float displayWidth, float displayHeight, float sourceLeft, float sourceTop, float cursorX, float cursorY) {
+-    float x, y, w, h;
++    float x, y, w, h, scale;
+ 
+     if (!state->cursor.width || !state->cursor.height || !state->cursor.visible)
+         return;
+ 
+-    x = 2.f * (cursorX - sourceLeft - (float) state->cursor.xhot) / displayWidth - 1.f;
+-    y = 2.f * (cursorY - sourceTop - (float) state->cursor.yhot) / displayHeight - 1.f;
+-    w = 2.f * (float) state->cursor.width / displayWidth;
+-    h = 2.f * (float) state->cursor.height / displayHeight;
++    // Core X cursors are 16 px, tiny on a phone screen; draw them 3x. Themed
++    // cursors (already large) are drawn as they are.
++    scale = state->cursor.width <= 32 && state->cursor.height <= 32 ? 3.f : 1.f;
++    x = 2.f * (cursorX - sourceLeft - scale * (float) state->cursor.xhot) / displayWidth - 1.f;
++    y = 2.f * (cursorY - sourceTop - scale * (float) state->cursor.yhot) / displayHeight - 1.f;
++    w = 2.f * scale * (float) state->cursor.width / displayWidth;
++    h = 2.f * scale * (float) state->cursor.height / displayHeight;
+     glEnable(GL_BLEND);
+     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+     drawRegion(cursor.id, x, y, x + w, y + h, 0.f, 0.f, 1.f, 1.f, false);
 diff --git a/lorie/src/main/cpp/recipes/xkbcomp.cmake b/lorie/src/main/cpp/recipes/xkbcomp.cmake
 index a7a2a33..fa3a254 100644
 --- a/lorie/src/main/cpp/recipes/xkbcomp.cmake
