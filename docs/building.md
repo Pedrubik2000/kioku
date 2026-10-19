@@ -1,0 +1,126 @@
+# Building Kioku
+
+## Releases from GitHub Actions
+
+`.github/workflows/release.yml` builds the runtime and the APK on GitHub's runners:
+
+* **Push a tag** such as `v0.2.0` (`git tag v0.2.0 && git push origin v0.2.0`): the workflow
+  builds `Kioku-0.2.0-arm64.apk` and attaches it, with `SHA256SUMS.txt`, to the GitHub release
+  of that tag.
+* **Run it by hand** (Actions → Release APK → Run workflow): the APK is kept as a workflow
+  artifact; give a tag to publish it to that release as well.
+
+The version name comes from the tag and the version code from the run number, so every build
+can update the previous one.
+
+### Signing
+
+Android only updates an app with an APK signed by the same key, so sign every release with one
+key of your own. Create it once and keep it (and its passwords) safe:
+
+```sh
+keytool -genkeypair -v -keystore kioku.jks -alias kioku -keyalg RSA -keysize 4096 -validity 10000
+base64 -i kioku.jks | tr -d '\n'     # macOS; on Linux: base64 -w0 kioku.jks
+```
+
+Then add these repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `KIOKU_KEYSTORE_BASE64` | the base64 output above |
+| `KIOKU_KEYSTORE_PASSWORD` | the keystore password |
+| `KIOKU_KEY_ALIAS` | `kioku` (the alias above) |
+| `KIOKU_KEY_PASSWORD` | the key password, if different from the keystore password |
+
+Without them the workflow signs with a throwaway debug key and warns.
+
+## Local build
+
+Requirements: Android SDK, NDK `30.0.14904198` (see `gradle.properties`), JDK 21, Python 3.
+
+```sh
+git submodule update --init third_party/termux-x11
+git -C third_party/termux-x11 apply ../../patches/termux-x11.patch
+git -C third_party/termux-x11 submodule update --init --depth 1
+# macOS only, see "Local changes to third-party code"
+(cd third_party/termux-x11/lorie/src/main/cpp && for p in pixman:pixman xkbcomp:xkbcomp \
+    libxkbfile:xkbfile libx11:x11 libxtrans:Xtrans xserver:xserver libepoxy:libepoxy; do
+    patch -p1 -N -d "${p%%:*}" -i "$PWD/patches/${p##*:}.patch" </dev/null; done)
+
+# Runtime: Termux packages (+ local-debs/ from krmanik/termux-packages), cross-compiled
+# PyQt6.sip, pure-Python deps (tools/python-requirements.txt), pruned and zipped.
+tools/build_bootstrap.sh          # Linux: SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+`local-debs/` holds packages built from the `anki` branch of
+[krmanik/termux-packages](https://github.com/krmanik/termux-packages/tree/anki) that are not in
+the Termux repositories yet (anki, python-markupsafe, python-orjson); they take precedence over
+the repositories' packages.
+
+## Application id and the runtime
+
+Termux binaries hardcode `/data/data/<package>/files/usr`, so the runtime has to be made for the
+app's id (`ankideskApplicationId` in `gradle.properties`). Rebuilding every Termux package for a
+new id takes a day of compiling, so `tools/build_rootfs.py` retargets the official packages in
+place instead, which only works when each path keeps its length. `io.ankidesk` is one character
+longer than `com.termux`, so the rootfs directory loses one: `file/` instead of `files/`
+(`ankideskRootfsDir`).
+
+| | path | length |
+|---|---|---|
+| Termux | `/data/data/com.termux/files/usr` | 31 |
+| Kioku | `/data/data/io.ankidesk/file/usr` | 31 |
+
+* The app gets the directory as `BuildConfig.ROOTFS_DIR`; the bootstrap's `MANIFEST.txt` records
+  the package and rootfs it was made for, and the app refuses a runtime made for another.
+* termux-exec has the bare `/data/data/com.termux` as a default, which cannot be rewritten in
+  place. It prefers `TERMUX_APP__DATA_DIR`, `TERMUX_APP__LEGACY_DATA_DIR`, `TERMUX__ROOTFS` and
+  `TERMUX__PREFIX` from the environment, which `Prefix.environment()` sets.
+* Apps installed from the Software page are rewritten the same way when they are unpacked
+  (`ankidesk_pkg.py`).
+
+Packages compiled for the id (`tools/build-termux-packages.sh ~/termux-packages` on x86_64 Linux,
+then the .debs in `local-debs/`) need no rewriting: set `ankideskRootfsDir=files` and run
+`SOURCE_PACKAGE=io.ankidesk tools/build_bootstrap.sh io.ankidesk files`.
+
+Termux limits the package name to 33 characters (21 recommended) because of Unix socket
+(108) and shebang (127) path limits.
+
+## Size
+
+| | |
+|---|---|
+| Typical Termux install used to build/run Anki | ~3.4 GB |
+| Anki runtime closure (dpkg) | ~1.1 GB |
+| Bundled prefix after pruning | ~625 MB |
+| `bootstrap-aarch64.zip` in the APK | ~230 MB |
+
+Pruned: headers, static libs, docs, translations other than English for WebEngine, Qt tools,
+perl, mesa + LLVM (Qt and Chromium run without OpenGL), gstreamer.
+
+## Known gaps in the Termux packages
+
+* `pyqt6` installs `PyQt6-sip` with pip in its postinst (compiling it on the phone);
+  `tools/build_pyqt6_sip.sh` cross-compiles it instead. `python-pyqt6-sip` from
+  krmanik/termux-packages would replace this once it is in the repositories.
+* `pyqt6` is built without the QtQuick bindings and Qt's OpenGL classes. Anki imports both but
+  only uses them for GPU selection; `launch_anki.py` provides stand-ins.
+
+## Local changes to third-party code
+
+Kept in `patches/termux-x11.patch`; apply with
+`git -C third_party/termux-x11 apply ../../patches/termux-x11.patch`.
+
+* `third_party/termux-x11/lorie/version.gradle`: NDK version can be overridden with the
+  `termuxX11NdkVersion` Gradle property.
+* `third_party/termux-x11/lorie/src/main/cpp/lorie/renderer.cpp`: core cursors (≤ 32 px) are
+  drawn three times larger.
+* `third_party/termux-x11/lorie/src/main/cpp/recipes/xkbcomp.cmake`: a `case-compat` include
+  dir with bionic's `xlocale.h`, which on case-insensitive filesystems (macOS) otherwise
+  resolves to libX11's `X11/Xlocale.h`.
+* termux-x11 applies its submodule patches at CMake configure time with
+  `patch -R --dry-run || patch …`. Apple's `/usr/bin/patch` exits 0 on a failed reverse dry run,
+  so on macOS nothing gets patched (`'GL/gl.h' file not found`); apply them by hand as above.
