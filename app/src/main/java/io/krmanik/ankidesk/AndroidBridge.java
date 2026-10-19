@@ -18,6 +18,9 @@ import android.view.inputmethod.InputMethodManager;
 import com.termux.x11.LoriePreferences;
 import com.termux.x11.MainActivity;
 
+import java.io.File;
+import java.io.IOException;
+
 /**
  * Commands sent from inside the prefix as {@code ankidesk:<command>} (through
  * xdg-open's request directory). They let the desktop use Android for things
@@ -70,7 +73,15 @@ final class AndroidBridge {
                                 Uri.fromParts("package", ctx.getPackageName(), null)));
                         break;
                     case "pick-wallpaper":
-                        start(ctx, new Intent(ctx, PickWallpaperActivity.class));
+                        start(ctx, new Intent(ctx, PickFileActivity.class)
+                                .putExtra(PickFileActivity.EXTRA_KIND, PickFileActivity.KIND_WALLPAPER));
+                        break;
+                    case "pick-deck":
+                        start(ctx, new Intent(ctx, PickFileActivity.class)
+                                .putExtra(PickFileActivity.EXTRA_KIND, PickFileActivity.KIND_DECK));
+                        break;
+                    case "storage":
+                        start(ctx, new Intent(ctx, StorageActivity.class));
                         break;
                     case "phone-apps":
                         start(ctx, new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME));
@@ -115,6 +126,23 @@ final class AndroidBridge {
         ctx.sendBroadcast(new Intent("com.termux.x11.CHANGE_PREFERENCE")
                 .setPackage(ctx.getPackageName())
                 .putExtra("touchMode", mode));
+        writeTouchMode(ctx, mode);
+    }
+
+    /**
+     * Tells the desktop which touch mode is active (~/.config/kioku/touch-mode:
+     * "touch" or "trackpad"), so Settings can show it.
+     */
+    static void writeTouchMode(Context ctx, String mode) {
+        if (mode == null)
+            mode = ctx.getSharedPreferences(ctx.getPackageName() + "_preferences", Context.MODE_PRIVATE)
+                    .getString("touchMode", "2");
+        try {
+            PickFileActivity.writeAtomically(new File(new Prefix(ctx).home, ".config/kioku"), "touch-mode",
+                    "1".equals(mode) ? "trackpad" : "touch");
+        } catch (IOException e) {
+            Log.w(TAG, "Cannot save touch mode", e);
+        }
     }
 
     /** Android's Files app, opened at this app's home directory (HomeDocumentsProvider). */

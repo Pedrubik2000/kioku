@@ -16,10 +16,21 @@ import com.termux.x11.MainActivity;
  * launcher so Anki gets started instead of showing an empty screen.
  */
 public class AnkiApp extends LorieApp {
+    /** Held here: SharedPreferences keeps its listeners only weakly. */
+    private SharedPreferences.OnSharedPreferenceChangeListener touchModeListener;
+
     @Override
     public void onCreate() {
         applyDisplayDefaults();
         super.onCreate();
+        // The touch mode can also be changed in the display settings; keep the
+        // desktop's Settings page in step.
+        touchModeListener = (prefs, key) -> {
+            if ("touchMode".equals(key))
+                AndroidBridge.writeTouchMode(this, prefs.getString(key, "2"));
+        };
+        getSharedPreferences(getPackageName() + "_preferences", MODE_PRIVATE)
+                .registerOnSharedPreferenceChangeListener(touchModeListener);
         registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override
             public void onActivityResumed(Activity activity) {

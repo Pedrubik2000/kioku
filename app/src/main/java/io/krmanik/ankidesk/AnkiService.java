@@ -21,8 +21,6 @@ import com.termux.x11.MainActivity;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -146,6 +144,7 @@ public class AnkiService extends Service {
         try {
             prefix.tmp.mkdirs();
             prefix.home.mkdirs();
+            AndroidBridge.writeTouchMode(this, null);
             killEverything();
             ready.delete();
 
@@ -266,7 +265,7 @@ public class AnkiService extends Service {
                     return;
                 File f = new File(dir, path);
                 try {
-                    String target = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8).trim();
+                    String target = Prefix.readFile(f).trim();
                     if (target.startsWith("ankidesk:")) {
                         AndroidBridge.handle(AnkiService.this, target);
                         return;

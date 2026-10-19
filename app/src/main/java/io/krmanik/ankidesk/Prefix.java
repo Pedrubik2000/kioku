@@ -10,6 +10,9 @@ import android.system.Os;
 import android.system.OsConstants;
 import android.util.Log;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,6 +22,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.zip.ZipEntry;
@@ -201,21 +205,56 @@ final class Prefix {
             os.write((apkVersion(ctx) + "\n").getBytes(StandardCharsets.UTF_8));
         }
         // Apps the user installed live inside the prefix; remember them so the
-        // session reinstalls them (ankidesk_pkg.py restore).
-        File apps = new File(prefix, "var/lib/ankidesk/installed.json");
-        if (apps.exists() && !apps.renameTo(new File(files, "apps-to-restore.json")))
-            Log.w(TAG, "Could not keep the list of installed apps");
-        deleteRecursive(prefix);
-        if (!staging.renameTo(prefix))
+        // session reinstalls them (ankidesk_pkg.py restore). Merged with a list
+        // left by an earlier update whose restore has not finished yet.
+        keepInstalledApps();
+        // Nothing removed below may reach the phone's files.
+        StorageActivity.unlink(this);
+        // Swap the runtimes with renames: until the new one is in place the old
+        // one stays whole, so an interruption never leaves no runtime at all.
+        // User data (decks, media, add-ons, settings) is in home/, which is
+        // never touched here.
+        File old = new File(files, "usr-old");
+        deleteRecursive(old);
+        if (prefix.exists() && !prefix.renameTo(old))
+            throw new IOException("Cannot move " + prefix + " aside");
+        if (!staging.renameTo(prefix)) {
+            //noinspection ResultOfMethodCallIgnored
+            old.renameTo(prefix);
             throw new IOException("Cannot move " + staging + " to " + prefix);
+        }
+        deleteRecursive(old);
         home.mkdirs();
         Log.i(TAG, "Installed bootstrap into " + prefix);
     }
 
+    private void keepInstalledApps() {
+        File apps = new File(prefix, "var/lib/ankidesk/installed.json");
+        File restore = new File(files, "apps-to-restore.json");
+        if (!apps.exists())
+            return;
+        try {
+            JSONObject pending = new JSONObject(restore.exists() ? readFile(restore) : "{}");
+            JSONObject current = new JSONObject(readFile(apps));
+            for (Iterator<String> it = current.keys(); it.hasNext(); ) {
+                String name = it.next();
+                pending.put(name, current.get(name));
+            }
+            try (OutputStream os = new FileOutputStream(restore)) {
+                os.write(pending.toString().getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (IOException | JSONException e) {
+            Log.w(TAG, "Could not keep the list of installed apps", e);
+        }
+    }
+
     /** Forget the installed runtime so the next start unpacks it again. User data is kept. */
     void reset() {
+        keepInstalledApps();
+        StorageActivity.unlink(this);
         deleteRecursive(prefix);
         deleteRecursive(new File(files, "usr-staging"));
+        deleteRecursive(new File(files, "usr-old"));
     }
 
     private static Properties readManifest(Context ctx) throws IOException {
@@ -244,10 +283,20 @@ final class Prefix {
         return env;
     }
 
+    /**
+     * Deletes f and, for a real directory, everything in it. Symbolic links are
+     * removed, never followed, and nothing on the phone's shared storage is
+     * touched even when reached through a link in the path (~/storage/...).
+     */
     static void deleteRecursive(File f) {
-        if (!f.exists() && !isSymlink(f))
+        if (isSymlink(f)) {
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
             return;
-        if (f.isDirectory() && !isSymlink(f)) {
+        }
+        if (!f.exists() || isSharedStorage(f))
+            return;
+        if (f.isDirectory()) {
             File[] children = f.listFiles();
             if (children != null)
                 for (File c : children)
@@ -257,7 +306,17 @@ final class Prefix {
         f.delete();
     }
 
-    private static boolean isSymlink(File f) {
+    /** True for paths on the phone's shared storage (/storage, /sdcard, /mnt). */
+    static boolean isSharedStorage(File f) {
+        try {
+            String c = f.getCanonicalPath();
+            return c.startsWith("/storage/") || c.startsWith("/sdcard") || c.startsWith("/mnt/");
+        } catch (IOException e) {
+            return true;  // unknown: leave it alone
+        }
+    }
+
+    static boolean isSymlink(File f) {
         try {
             return OsConstants.S_ISLNK(Os.lstat(f.getPath()).st_mode);
         } catch (ErrnoException e) {

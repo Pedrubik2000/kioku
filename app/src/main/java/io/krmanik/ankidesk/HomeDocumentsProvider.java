@@ -64,7 +64,10 @@ public class HomeDocumentsProvider extends DocumentsProvider {
         File[] children = file(parentId).listFiles();
         if (children != null)
             for (File f : children)
-                addRow(c, f);
+                // ~/storage/* link to the phone's own storage, which the Files
+                // app already shows and file() refuses (outside of home).
+                if (!Prefix.isSharedStorage(f))
+                    addRow(c, f);
         return c;
     }
 
