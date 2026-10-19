@@ -126,6 +126,26 @@ class Display:
         self.x.XSendEvent(self.dpy, self.root, 0, _SUBSTRUCTURE_MASK, ctypes.byref(ev))
         self.x.XFlush(self.dpy)
 
+    def atoms(self, win: int, name: str) -> list[int]:
+        fmt, raw = self._prop(win, name)
+        if fmt != 32:
+            return []
+        return list((ctypes.c_ulong * (len(raw) // ctypes.sizeof(ctypes.c_ulong))).from_buffer_copy(raw))
+
+    def is_maximized(self, win: int) -> bool:
+        state = self.atoms(win, "_NET_WM_STATE")
+        return self.atom("_NET_WM_STATE_MAXIMIZED_VERT") in state and self.atom("_NET_WM_STATE_MAXIMIZED_HORZ") in state
+
+    def is_hidden(self, win: int) -> bool:
+        return self.atom("_NET_WM_STATE_HIDDEN") in self.atoms(win, "_NET_WM_STATE")
+
+    def minimize(self, win: int) -> None:
+        self._message(win, "WM_CHANGE_STATE", 3)  # IconicState
+
+    def maximize(self, win: int, add: bool = True) -> None:
+        self._message(win, "_NET_WM_STATE", 1 if add else 0, self.atom("_NET_WM_STATE_MAXIMIZED_VERT"),
+                      self.atom("_NET_WM_STATE_MAXIMIZED_HORZ"), 2)
+
     def activate(self, win: int) -> None:
         self._message(win, "_NET_ACTIVE_WINDOW", 2, 0, 0)  # 2: request from a pager/taskbar
 
@@ -245,7 +265,8 @@ class TapWatcher(Display):
 
     def client_under_pointer(self) -> Window | None:
         """The application window under the pointer; None over the dock,
-        the desktop background or a title bar."""
+        the desktop background, a title bar or a popup (menu, tooltip), which
+        the window manager does not manage."""
         win = self.root
         for _ in range(8):
             root_ret, child = ctypes.c_ulong(), ctypes.c_ulong()
@@ -257,6 +278,8 @@ class TapWatcher(Display):
             win = child.value
             _, cls = self._prop(win, "WM_CLASS")
             if cls:
+                if win not in self.atoms(self.root, "_NET_CLIENT_LIST"):
+                    return None
                 parts = cls.split(b"\0")
                 return Window(win, (parts[1] if len(parts) > 1 else parts[0]).decode(errors="replace"), "")
         return None
@@ -282,6 +305,42 @@ class TapWatcher(Display):
         bw, bh = right - left + 1, bottom - top + 1
         centered = abs(c.xhot - (left + right) / 2) <= bw / 2 and top < c.yhot < bottom
         return centered and bh >= 1.6 * bw and bh >= h * 0.5
+
+
+def screen_size() -> tuple[int, int]:
+    """Width and height of the X screen in pixels."""
+    with Display() as d:
+        d.x.XDisplayWidth.argtypes = d.x.XDisplayHeight.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        return d.x.XDisplayWidth(d.dpy, 0), d.x.XDisplayHeight(d.dpy, 0)
+
+
+def window_states() -> tuple[list[int], list[int]]:
+    """Ids of the maximized and of the minimized windows."""
+    try:
+        with Display() as d:
+            ids = [w.id for w in d.windows()]
+            return [i for i in ids if d.is_maximized(i)], [i for i in ids if d.is_hidden(i)]
+    except OSError:
+        return [], []
+
+
+def restore_states(maximized: list[int], minimized: list[int], minimize: bool = True) -> None:
+    """Put windows back as window_states() found them (JWM forgets on restart).
+    After a restart JWM may believe a window is maximized at the old screen
+    size, so maximizing is undone and redone."""
+    try:
+        with Display() as d:
+            current = {w.id for w in d.windows()}
+            for wid in maximized:
+                if wid in current:
+                    d.maximize(wid, add=False)
+                    d.maximize(wid)
+            if minimize:
+                for wid in minimized:
+                    if wid in current:
+                        d.minimize(wid)
+    except OSError:
+        pass
 
 
 def find(predicate) -> list[Window]:

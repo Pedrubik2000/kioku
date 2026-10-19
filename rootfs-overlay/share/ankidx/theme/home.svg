@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="216" height="216">
+  <!-- Dock button that shows the desktop: the Kioku mark, flat. -->
+  <rect x="6" y="6" width="96" height="96" rx="28" fill="#2E8BFF"/>
+  <rect x="31" y="27" width="40" height="54" rx="9" fill="none" stroke="#FFFFFF" stroke-opacity="0.5"
+        stroke-width="4" transform="rotate(-10 51 54)"/>
+  <path d="M56 30 C58 46 63 51 79 53 C63 55 58 60 56 76 C54 60 49 55 33 53 C49 51 54 46 56 30 Z" fill="#FFFFFF"/>
+</svg>

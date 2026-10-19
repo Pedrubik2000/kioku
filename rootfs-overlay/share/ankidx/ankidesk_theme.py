@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 import sys
 
 from PyQt6.QtCore import QByteArray, QRectF, Qt
@@ -35,10 +34,18 @@ ACCENT = "#2E8BFF"
 ACCENT_PRESSED = "#1A6FE0"
 TEXT = "#F4F6FB"
 TEXT_DIM = "#A8B3C7"
-CARD = "rgba(255, 255, 255, 0.08)"
+# Frosted glass, only on the home page over the wallpaper.
+CARD = "rgba(16, 22, 38, 0.78)"
 CARD_PRESSED = "rgba(255, 255, 255, 0.18)"
 BORDER = "rgba(255, 255, 255, 0.10)"
+# Solid surfaces for Software and Settings, where text must stay readable.
+BACKGROUND = "#0E1322"
+SURFACE = "#182034"
+SURFACE_RAISED = "#222B42"
+SURFACE_PRESSED = "#2C3756"
+SURFACE_BORDER = "#252E46"
 DANGER = "#FF5A5F"
+SUCCESS = "#34C77B"
 
 # Line icons on a 24x24 grid, stroked with the current colour
 # (Feather-style: 2px stroke, round joins).
@@ -93,6 +100,10 @@ GLYPHS = {
     "anki": '<rect x="5.5" y="3" width="13" height="18" rx="2.5" transform="rotate(-12 12 12)" stroke-opacity=".55"/>'
             '<polygon points="12 6.5 13.8 10.2 17.8 10.7 14.9 13.5 15.6 17.5 12 15.6 8.4 17.5 9.1 13.5 6.2 10.7 10.2 10.2"'
             ' fill="#fff" stroke-width="1.2"/>',
+    "upload": '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/>'
+              '<line x1="12" y1="3" x2="12" y2="15"/>',
+    "smartphone": '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+    "lock": '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
     "book": '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>'
             '<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
 }
@@ -238,12 +249,46 @@ def wallpaper(width: int, height: int, dim: float = 0.0, path: str | None = None
     return pm
 
 
-def write_jwmrc() -> None:
-    """~/.jwmrc from the template, with the chosen wallpaper as background."""
+def is_landscape() -> bool:
+    try:
+        import ankidesk_x11
+
+        width, height = ankidesk_x11.screen_size()
+        return width > height
+    except OSError:
+        return False
+
+
+def jwmrc_landscape() -> bool:
+    """Whether ~/.jwmrc has the landscape (side) dock."""
+    try:
+        with open(os.path.join(HOME, ".jwmrc"), encoding="utf-8") as fh:
+            return 'layout="vertical"' in fh.read()
+    except OSError:
+        return False
+
+
+def _side_dock(rc: str) -> str:
+    """The template's bottom dock turned into one on the right edge: in
+    landscape the height is the scarce axis. Window buttons show icons only."""
+    tray = re.search(r"<Tray .*?</Tray>", rc, re.S).group(0)
+    side = (tray.replace('x="0" y="-1" height="132"', 'x="-1" y="0" width="132" layout="vertical"')
+            .replace('<Spacer width=', '<Spacer height=')
+            .replace('<TaskList maxwidth="380" height="104"/>', '<TaskList height="112" labeled="false"/>'))
+    return rc.replace(tray, side)
+
+
+def write_jwmrc(landscape: bool | None = None) -> None:
+    """~/.jwmrc from the template, with the chosen wallpaper as background and
+    the dock at the bottom (portrait) or on the right (landscape)."""
     with open(JWMRC_TEMPLATE, encoding="utf-8") as fh:
         rc = fh.read()
     rc = re.sub(r"(<Background type=\"scale\">)[^<]*(</Background>)",
                 lambda m: m.group(1) + current_wallpaper() + m.group(2), rc)
+    if landscape is None:
+        landscape = is_landscape()
+    if landscape:
+        rc = _side_dock(rc)
     tmp = os.path.join(HOME, ".jwmrc.new")
     with open(tmp, "w", encoding="utf-8") as fh:
         fh.write(rc)
@@ -254,8 +299,9 @@ def set_wallpaper(path: str) -> None:
     os.makedirs(CONFIG_DIR, exist_ok=True)
     with open(WALLPAPER_SETTING, "w", encoding="utf-8") as fh:
         fh.write(path)
-    write_jwmrc()
-    subprocess.run(["jwm", "-restart"], check=False)
+    # JWM's own background is hidden behind the desktop shell; it takes the new
+    # picture at its next restart. Restarting it now would disturb open windows.
+    write_jwmrc(jwmrc_landscape())
 
 
 def import_wallpaper(src: str, width: int, height: int) -> str:
@@ -272,5 +318,135 @@ def import_wallpaper(src: str, width: int, height: int) -> str:
     return CUSTOM_WALLPAPER
 
 
+# Settings for the optional apps (Qt and GTK), which unlike Anki and the desktop
+# know nothing about the phone. Qt reads ~/.config/kdeglobals when it believes
+# it runs in KDE (app_environment()): a dark palette matching the desktop and
+# items opened with one tap instead of a double click.
+KDEGLOBALS = os.path.join(HOME, ".config/kdeglobals")
+_KDEGLOBALS = """# Written by Kioku (ankidesk_theme.py); delete this line to keep your own changes.
+[KDE]
+SingleClick=true
+widgetStyle=Fusion
+
+[General]
+ColorScheme=Kioku
+font=DejaVu Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+fixed=DejaVu Sans Mono,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+menuFont=DejaVu Sans,11,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+toolBarFont=DejaVu Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1
+
+[Toolbar style]
+ToolButtonStyle=TextBesideIcon
+
+[MainToolbarIcons]
+Size=24
+
+[ToolbarIcons]
+Size=24
+
+[Icons]
+Theme=AdwaitaLegacy
+
+[Colors:Window]
+BackgroundNormal=24,32,52
+BackgroundAlternate=30,39,62
+ForegroundNormal=244,246,251
+ForegroundInactive=168,179,199
+ForegroundLink=46,139,255
+
+[Colors:View]
+BackgroundNormal=14,19,34
+BackgroundAlternate=20,26,44
+ForegroundNormal=244,246,251
+ForegroundInactive=168,179,199
+ForegroundLink=46,139,255
+
+[Colors:Button]
+BackgroundNormal=34,43,66
+BackgroundAlternate=44,55,86
+ForegroundNormal=244,246,251
+ForegroundInactive=168,179,199
+
+[Colors:Selection]
+BackgroundNormal=46,139,255
+BackgroundAlternate=26,111,224
+ForegroundNormal=255,255,255
+ForegroundInactive=230,236,245
+
+[Colors:Tooltip]
+BackgroundNormal=26,33,51
+ForegroundNormal=244,246,251
+
+[Colors:Header]
+BackgroundNormal=24,32,52
+ForegroundNormal=244,246,251
+
+[Colors:Complementary]
+BackgroundNormal=14,19,34
+ForegroundNormal=244,246,251
+"""
+
+
+# PCManFM-Qt has its own click setting; written only if the user has none.
+PCMANFM_SETTINGS = os.path.join(HOME, ".config/pcmanfm-qt/default/settings.conf")
+# Installed with the file-based apps (ankidesk_pkg.ICON_THEME_PACKAGE).
+ICON_THEME = "AdwaitaLegacy"
+_PCMANFM_SETTINGS = f"""[System]
+FallbackIconThemeName={ICON_THEME}
+
+[Behavior]
+SingleClick=true
+
+[FolderView]
+Mode=icon
+BigIconSize=48
+SmallIconSize=24
+SidePaneIconSize=24
+ThumbnailIconSize=128
+"""
+
+
+def write_app_settings() -> None:
+    try:
+        with open(PCMANFM_SETTINGS, encoding="utf-8") as fh:
+            ours = "FallbackIconThemeName" not in fh.read()  # an older one of ours
+    except FileNotFoundError:
+        ours = True
+    if ours:
+        os.makedirs(os.path.dirname(PCMANFM_SETTINGS), exist_ok=True)
+        with open(PCMANFM_SETTINGS, "w", encoding="utf-8") as fh:
+            fh.write(_PCMANFM_SETTINGS)
+    try:
+        with open(KDEGLOBALS, encoding="utf-8") as fh:
+            if not fh.readline().startswith("# Written by Kioku"):
+                return  # the user's own
+    except FileNotFoundError:
+        pass
+    os.makedirs(os.path.dirname(KDEGLOBALS), exist_ok=True)
+    with open(KDEGLOBALS, "w", encoding="utf-8") as fh:
+        fh.write(_KDEGLOBALS)
+
+
+def app_environment() -> dict[str, str]:
+    """Environment for apps started from the desktop (not Anki, which scales
+    itself): sized like Anki, with the settings above."""
+    env = dict(os.environ)
+    scale = float(env.get("ANKIDX_SCALE", "2"))
+    env.update({
+        "QT_SCALE_FACTOR": f"{scale:g}",
+        "QT_ENABLE_HIGHDPI_SCALING": "1",
+        "XDG_CURRENT_DESKTOP": "KDE",
+        "KDE_FULL_SESSION": "true",
+        "KDE_SESSION_VERSION": "6",
+        "GDK_SCALE": str(max(1, round(scale))),
+    })
+    for key in ("QT_QPA_PLATFORMTHEME", "QT_STYLE_OVERRIDE"):
+        env.pop(key, None)
+    return env
+
+
 if __name__ == "__main__" and sys.argv[1:] == ["jwmrc"]:
-    write_jwmrc()
+    # Session start: the X screen does not have the display's size yet, so
+    # start with the portrait dock; the desktop switches it if needed.
+    write_jwmrc(landscape=False)
+    write_app_settings()

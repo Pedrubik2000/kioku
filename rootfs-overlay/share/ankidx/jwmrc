@@ -40,10 +40,11 @@
         <Option>maximized</Option>
     </Group>
 
-    <!-- Bottom dock: on a portrait phone width is the scarce axis. -->
+    <!-- Bottom dock: on a portrait phone width is the scarce axis. In landscape
+         ankidesk_theme.py moves it to the right edge. -->
     <Tray x="0" y="-1" height="132" autohide="off" layer="above">
         <Spacer width="12"/>
-        <TrayButton icon="/data/data/com.termux/files/usr/share/ankidx/theme/kioku.svg"
+        <TrayButton icon="/data/data/com.termux/files/usr/share/ankidx/theme/home.svg"
             popup="Desktop">showdesktop</TrayButton>
         <Spacer width="12"/>
         <TaskList maxwidth="380" height="104"/>
@@ -76,7 +77,9 @@
         <Outline>#1E2638</Outline>
         <Opacity>1.0</Opacity>
     </TrayStyle>
-    <TaskListStyle list="all" group="false" labeled="true">
+    <!-- Flat, one colour per state; JWM's default for minimized windows
+         (all of them while the desktop is shown) is a gradient. -->
+    <TaskListStyle list="all" group="false" decorations="flat">
         <Font>DejaVu Sans:pixelsize=28</Font>
         <Foreground>#A8B3C7</Foreground>
         <Background>#0E1322</Background>
@@ -86,6 +89,11 @@
             <Background>#22355C</Background>
             <Outline>#2E8BFF</Outline>
         </Active>
+        <Minimized>
+            <Foreground>#A8B3C7</Foreground>
+            <Background>#161D30</Background>
+            <Outline>#0E1322</Outline>
+        </Minimized>
     </TaskListStyle>
     <TrayButtonStyle decorations="flat">
         <Font>DejaVu Sans:bold:pixelsize=30</Font>
@@ -109,7 +117,9 @@
         </Active>
         <Opacity>1.0</Opacity>
     </MenuStyle>
-    <PopupStyle>
+    <!-- No hover tooltips: on a touch screen the pointer stays where the
+         finger was, so they would linger over the dock. -->
+    <PopupStyle enabled="false">
         <Font>DejaVu Sans:pixelsize=28</Font>
         <Foreground>#F4F6FB</Foreground>
         <Background>#1A2133</Background>

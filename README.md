@@ -32,37 +32,85 @@ If start-up fails, the splash shows the reason and the log tail with **Retry**,
 ## Desktop and apps
 
 The desktop (`rootfs-overlay/share/ankidx/ankidesk_shell.py`, PyQt6, no extra size) is styled
-after Cutefish and Deepin: wallpaper, frosted cards, one blue accent, gradient "squircle" app
-icons drawn from SVG (`ankidesk_theme.py`). It sits below every window; the Kioku button in the
-dock minimizes the windows to show it. Closing Anki returns to the desktop, where the Anki icon
-opens it again; **Settings → Power off** closes Anki (which saves the collection) and ends the
-session.
+after Cutefish and Deepin: wallpaper on the home page, solid dark pages for Software and Settings,
+one blue accent, gradient "squircle" app icons drawn from SVG (`ankidesk_theme.py`). It sits below
+every window; the Kioku button in the dock minimizes the windows to show it. Closing Anki returns
+to the desktop, where the Anki icon opens it again; **Settings → Power off** closes Anki (which
+saves the collection) and ends the session. In landscape the page bar becomes a rail on the left
+and the dock moves to the right edge (window buttons show icons only).
 
 * **Apps**: clock, search, Anki, Terminal (`st`) and every installed app, with icons from their
   `.desktop` files.
-* **Software**: optional native Linux apps, installed on demand from the Termux repositories
-  (Files 8 MB, Text Editor 4 MB, QTerminal 3 MB, Web Browser/Falkon 49 MB, Image Viewer 6 MB,
-  Archives 7 MB, System Monitor 1 MB). They appear in Apps once installed and disappear when
-  removed. After an app update the runtime is replaced and they are reinstalled automatically.
+* **Software**: recommended native Linux apps (Files 8 MB, Text Editor 4 MB, QTerminal 3 MB, Web
+  Browser/Falkon 49 MB, Image Viewer 6 MB, Archives 7 MB, System Monitor 1 MB) and a search over
+  every package in the Termux repositories (main and x11). Apps appear in Apps once installed;
+  command-line packages open in a terminal. After an app update the runtime is replaced and they
+  are reinstalled automatically.
 * **Settings**: wallpaper (six built in, or any picture from Android's gallery or the home
-  folder), touch as tap-to-click or mouse pad, keyboard, display settings, storage, restart
-  desktop, power off.
+  folder), touch screen or mouse pad (the current one is marked), keyboard, import a deck from
+  the phone, phone storage, display settings, app info, restart desktop, power off.
 
-The installer (`ankidesk_pkg.py`, also `ankidesk-pkg install|remove|list` in a terminal) resolves
-dependencies against the bundled packages, checks SHA256, unpacks into the prefix and rewrites
-the Termux path; it does not run maintainer scripts.
+Installed apps are started with Anki's scale (`QT_SCALE_FACTOR`, `GDK_SCALE`) and as if in KDE,
+so Qt reads `~/.config/kdeglobals` (`ankidesk_theme.py`): a dark palette like the desktop's and
+items that open with one tap. PCManFM-Qt gets single-click in its own settings. The session has a
+D-Bus session bus (single-instance apps such as PCManFM-Qt exit without one) and
+`XDG_DATA_DIRS`/`XDG_CONFIG_DIRS` pointing into the prefix (icon themes, `.desktop` files). The
+file-based apps install `adwaita-icon-theme-legacy` (2 MB) with them for file and folder icons.
+
+The installer (`ankidesk_pkg.py`, also `ankidesk-pkg install|remove|list|search` in a terminal)
+resolves dependencies against the bundled packages, checks SHA256, unpacks into the prefix and
+rewrites the Termux path; it does not run maintainer scripts, so a few command-line packages may
+need extra steps.
 
 Window manager: JWM. Main windows maximized, dialogs centered/on top with a close button, bottom
-dock (desktop, open windows, keyboard, clock). `~/.jwmrc` is generated from `share/ankidx/jwmrc`
-with the chosen wallpaper. Qt is scaled so the short side of the screen is ~480 logical pixels.
+dock (desktop, open windows, keyboard, clock), flat with no gradients and no hover tooltips.
+`~/.jwmrc` is generated from `share/ankidx/jwmrc` with the chosen wallpaper and the dock for the
+current orientation. Turning the phone restarts JWM with the other dock; JWM forgets which windows
+were maximized or minimized on a restart and when the screen size changes, so the desktop samples
+the window states and puts them back. Qt is scaled so the short side of the screen is ~480
+logical pixels.
 
-Keyboard: text fields open the Android keyboard and tapping elsewhere closes it. Anki and the
-desktop follow Qt's focus (`ankidesk_keyboard.py`, plus a script in Anki's web views). For other
-apps the desktop watches taps (XInput2 raw events) and opens the keyboard when the pointer then is
-a text cursor (I-beam), e.g. in a terminal (`ankidesk_x11.py`).
+Touch (`ankidesk_touch.py`, used by the desktop and Anki): in touch-screen mode a finger drag
+arrives as a held mouse button; dragging in a page, list or web view scrolls it with momentum
+(web views through a script) instead of selecting, and the tap at its end is dropped. Windows
+whose desktop-sized minimum would not fit the phone (e.g. Anki's About) are shrunk to the
+screen, file dialogs fill it and open folders with one tap. In mouse-pad mode one finger moves
+the pointer and two fingers scroll.
+
+Keyboard: text fields open the Android keyboard and tapping elsewhere closes it; tapping a field
+again reopens it after it was closed with Back. Anki and the desktop follow Qt's focus and taps
+(`ankidesk_keyboard.py`, plus a script in Anki's web views). For other apps the desktop watches
+taps (XInput2 raw events) and opens the keyboard when the pointer then is a text cursor (I-beam),
+e.g. in a terminal (`ankidesk_x11.py`).
 
 Cursors: no cursor theme is bundled, so `ankidesk_cursors.py` draws a large "kioku" Xcursor theme
 on first start, and the display draws 16 px core cursors (JWM, `st`) three times larger.
+
+## Phone files
+
+* **Import a deck**: Settings → Import a deck from the phone, or Import in Anki (it asks
+  "Phone storage" or "Kioku files"), opens Android's file picker. Kioku also offers itself for
+  opening or sharing `.apkg`/`.colpkg` files from other apps. The file is copied to `~/Imports`
+  (`PickFileActivity`), and the desktop hands it to Anki through Anki's single-instance socket
+  (`ANKI_SINGLE_INSTANCE_KEY=kioku-anki`), or starts Anki with it.
+* **Phone storage**: like `termux-setup-storage`. Settings → Phone storage (also offered when
+  Files opens for the first time) asks for Android's all-files access and links
+  `~/storage/{shared,downloads,documents,dcim,pictures,music,movies}`, with bookmarks for
+  PCManFM-Qt (`StorageActivity`). Tapping it again turns it off.
+* **Nothing is deleted on the phone's storage**: before the runtime is replaced or repaired and
+  before packages are removed, phone storage is turned off (only the links in `~/storage` are
+  removed). Deleting never follows links, skips anything under `/storage`, `/sdcard` and `/mnt`,
+  and the documents provider (`HomeDocumentsProvider`) does not list the links.
+
+## Updates and user data
+
+Everything that belongs to the user lives in `files/home`: Anki's profiles, collections, media,
+backups and add-ons (`~/.local/share/Anki2`), settings (`~/.config`), imports. An app update or
+**Repair runtime** only replaces `files/usr`: the new runtime is unpacked into `usr-staging` and
+swapped in with renames (the old one is moved aside first, so an interruption never leaves
+neither), then the old one is deleted. Packages the user installed are listed in
+`files/apps-to-restore.json` (merged with an unfinished earlier list) and reinstalled by the next
+session; the list is kept until that succeeds.
 
 ## Application id and the runtime
 

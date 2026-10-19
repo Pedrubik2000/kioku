@@ -24,13 +24,14 @@ SHELL_SOCKET = os.path.join(TMPDIR, "ankidesk-shell.sock")
 REQUEST_DIR = os.path.join(TMPDIR, "ankidx-open")
 _counter = itertools.count()
 
-# Desktop files that are part of the runtime, not apps for the user.
-HIDDEN = {"anki.desktop", "jwm.desktop"}
+# Desktop files that are part of the runtime or settings of an app, not apps
+# for the user (PCManFM-Qt's desktop settings only apply to its own desktop).
+HIDDEN = {"anki.desktop", "jwm.desktop", "pcmanfm-qt-desktop-pref.desktop"}
 
 
 @dataclass
 class App:
-    id: str
+    id: str  # desktop file name without .desktop
     name: str
     comment: str
     exec: str
@@ -80,6 +81,39 @@ def apps() -> list[App]:
         ))
     out.sort(key=lambda a: a.name.lower())
     return out
+
+
+HOME = os.environ.get("HOME", os.path.join(os.path.dirname(PREFIX), "home"))
+STORAGE_DIR = os.path.join(HOME, "storage")
+STORAGE_STATE = os.path.join(HOME, ".config/kioku/storage")
+
+
+def storage_on() -> bool:
+    return os.path.islink(os.path.join(STORAGE_DIR, "shared"))
+
+
+def storage_off() -> None:
+    """Remove the ~/storage links to the phone's shared storage (made by the
+    app's StorageActivity). Only the links go; the phone's files are never
+    touched. Done before anything is removed, so no deletion can reach them."""
+    try:
+        names = os.listdir(STORAGE_DIR)
+    except OSError:
+        return
+    had = False
+    for name in names:
+        path = os.path.join(STORAGE_DIR, name)
+        if os.path.islink(path):
+            os.unlink(path)
+            had = True
+    try:
+        os.rmdir(STORAGE_DIR)  # only if now empty
+    except OSError:
+        pass
+    if had:
+        os.makedirs(os.path.dirname(STORAGE_STATE), exist_ok=True)
+        with open(STORAGE_STATE, "w", encoding="utf-8") as fh:
+            fh.write("off")
 
 
 def notify_shell() -> None:

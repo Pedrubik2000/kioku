@@ -11,6 +11,10 @@ export PATH="$PREFIX/bin:/system/bin"
 export DISPLAY="${DISPLAY:-:0}"
 export LANG="${LANG:-en_US.UTF-8}"
 export SHELL="$PREFIX/bin/dash"
+# Where Qt and GTK look for icon themes, .desktop files and settings; their
+# built-in default (/usr/share, /etc/xdg) does not exist here.
+export XDG_DATA_DIRS="$PREFIX/share"
+export XDG_CONFIG_DIRS="$PREFIX/etc/xdg"
 
 mkdir -p "$HOME" "$TMPDIR" "$PREFIX/var/cache/fontconfig"
 
@@ -21,6 +25,15 @@ export QT_XCB_GL_INTEGRATION=none
 export QT_QUICK_BACKEND=software
 export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-gpu-compositing --disable-dev-shm-usage --disable-features=Vulkan --in-process-gpu --no-zygote --renderer-process-limit=1 --process-per-site --touch-events=enabled"
 export QTWEBENGINE_DISABLE_SANDBOX=1
+# Anki's single-instance socket, so the desktop can hand it files to import.
+export ANKI_SINGLE_INSTANCE_KEY=kioku-anki
+
+# A D-Bus session bus. Single-instance apps such as PCManFM-Qt look for their
+# running copy on it, and without one they hand over to nobody and exit.
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+	DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --session --fork --print-address 2>"$TMPDIR/dbus.log") \
+		&& export DBUS_SESSION_BUS_ADDRESS
+fi
 
 # Large cursors drawn for the phone (ankidesk_cursors.py; generated once per
 # runtime, so an app update brings new ones).

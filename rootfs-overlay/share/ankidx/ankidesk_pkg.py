@@ -13,7 +13,7 @@ understands enough of the Debian formats for Termux packages:
 
 Maintainer scripts are not run; packages offered in the catalog do not need them.
 
-CLI: python ankidesk_pkg.py update|install NAME...|remove NAME...|restore|list
+CLI: python ankidesk_pkg.py update|install NAME...|remove NAME...|restore|list|search WORD
 """
 
 from __future__ import annotations
@@ -27,6 +27,7 @@ import shutil
 import ssl
 import sys
 import tarfile
+import time
 import urllib.request
 from typing import Callable
 
@@ -57,6 +58,10 @@ except FileNotFoundError:
     pass
 
 Progress = Callable[[str, float], None]
+
+# Full-colour file and folder icons for the file-based apps (no icon theme is
+# bundled); see ankidesk_theme.ICON_THEME.
+ICON_THEME_PACKAGE = "adwaita-icon-theme-legacy"
 
 
 def _no_progress(message: str, fraction: float) -> None:
@@ -111,8 +116,13 @@ def update(progress: Progress = _no_progress) -> None:
             fh.write(data)
 
 
-def index(progress: Progress = _no_progress) -> dict[str, dict[str, str]]:
-    if not all(os.path.exists(os.path.join(CACHE_DIR, r + ".Packages")) for r in REPOS):
+def index(progress: Progress = _no_progress, max_age: float | None = None) -> dict[str, dict[str, str]]:
+    """All packages in the repositories. The lists are downloaded when missing
+    or, with `max_age` (seconds), when older than that: packages are replaced
+    on the server, so old lists point at files that are gone."""
+    paths = [os.path.join(CACHE_DIR, r + ".Packages") for r in REPOS]
+    if not all(os.path.exists(p) for p in paths) or (
+            max_age is not None and time.time() - min(os.path.getmtime(p) for p in paths) > max_age):
         update(progress)
     pkgs: dict[str, dict[str, str]] = {}
     for repo in REPOS:
@@ -262,9 +272,28 @@ def _unpack(deb: bytes) -> list[str]:
 # --- operations ------------------------------------------------------------------
 
 
-def install(names: list[str], progress: Progress = _no_progress) -> list[str]:
-    pkgs = index(progress)
-    todo = plan(names, pkgs)
+def search(query: str, pkgs: dict[str, dict[str, str]], limit: int = 50) -> tuple[list[str], int]:
+    """Names matching `query` (name first, then description), best first, and the number of matches."""
+    q = query.strip().lower()
+    scored = []
+    for name, fields in pkgs.items():
+        if q in name:
+            score = 0 if name == q else 1 if name.startswith(q) else 2
+        elif q in fields.get("Description", "").lower():
+            score = 3
+        else:
+            continue
+        scored.append((score, len(name), name))
+    scored.sort()
+    return [n for *_, n in scored[:limit]], len(scored)
+
+
+def install(names: list[str], progress: Progress = _no_progress, extras: list[str] = ()) -> list[str]:
+    """Install `names` and, as automatic dependencies (removed with them),
+    `extras` such as an icon theme an app looks bare without."""
+    pkgs = index(progress, max_age=24 * 3600)
+    extras = [e for e in extras if e in pkgs]
+    todo = plan(list(names) + extras, pkgs)
     state = installed()
     for i, name in enumerate(todo):
         fields = pkgs[name]
@@ -301,7 +330,16 @@ def _needed(state: dict[str, dict], pkgs: dict[str, dict[str, str]]) -> set[str]
     return keep
 
 
+def _inside_prefix(path: str) -> bool:
+    real, root = os.path.realpath(path), os.path.realpath(PREFIX)
+    return real == root or real.startswith(root + os.sep)
+
+
 def remove(names: list[str], progress: Progress = _no_progress) -> list[str]:
+    from ankidesk_menu import storage_off
+
+    # Phone storage is turned off first, so nothing removed here can be on it.
+    storage_off()
     pkgs = index(progress)
     state = installed()
     for n in names:
@@ -316,7 +354,8 @@ def remove(names: list[str], progress: Progress = _no_progress) -> list[str]:
             if rel in still_owned:
                 continue
             path = os.path.join(PREFIX, rel)
-            if os.path.lexists(path):
+            # Never a file reached through a link out of the prefix.
+            if os.path.lexists(path) and _inside_prefix(os.path.dirname(path)):
                 os.unlink(path)
         del state[n]
     _save(state)
@@ -364,6 +403,12 @@ def main(argv: list[str]) -> int:
         print("\nremoved:", remove(args, show))
     elif cmd == "restore":
         print("\nrestored:", restore(show))
+    elif cmd == "search":
+        pkgs = index(show)
+        names, total = search(" ".join(args), pkgs)
+        for n in names:
+            print(f"{n}\t{pkgs[n].get('Version', '')}\t{pkgs[n].get('Description', '')}")
+        print(f"({total} matches)", file=sys.stderr)
     elif cmd == "list":
         for n, s in sorted(installed().items()):
             print(f"{n}\t{s['version']}{'' if s.get('auto') else '\t(manual)'}")
