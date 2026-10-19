@@ -58,10 +58,15 @@ jobs:
           java-version: "21"
 
       - uses: android-actions/setup-android@v3
+        with:
+          # The default also installs "tools", which current sdkmanager no longer has.
+          packages: platform-tools
 
-      - name: Android NDK and CMake
+      - name: Android SDK platform, NDK and CMake
         run: |
-          sdkmanager --install "ndk;$NDK_VERSION" "cmake;3.22.1" > /dev/null
+          # NDK 30.0.14904198 is a release candidate: only in the beta channel (--channel=1).
+          sdkmanager --channel=1 --install "platforms;android-36" "ndk;$NDK_VERSION" "cmake;3.22.1" > /dev/null
+          test -d "$ANDROID_SDK_ROOT/ndk/$NDK_VERSION"
           echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/$NDK_VERSION" >> "$GITHUB_ENV"
 
       - uses: actions/setup-python@v5
