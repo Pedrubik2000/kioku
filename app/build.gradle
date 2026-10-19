@@ -1,0 +1,45 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'io.krmanik.ankidesk'
+    compileSdk 36
+    ndkVersion project.findProperty('termuxX11NdkVersion')
+
+    defaultConfig {
+        // Must equal the package name the bundled runtime was built or patched for
+        // (/data/data/<applicationId>/files/usr), see gradle.properties.
+        applicationId project.property('ankideskApplicationId')
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0-anki26.08.1'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
+        }
+    }
+
+    // The X server is started with app_process and loads libXlorie.so straight
+    // out of the APK, so native libraries must stay uncompressed.
+    packaging.jniLibs.useLegacyPackaging false
+    // The bootstrap is already a deflated zip.
+    androidResources.noCompress += ['zip']
+}
+
+dependencies {
+    implementation project(':lorie')
+    implementation 'androidx.core:core:1.13.1'
+    // MainActivity (from :lorie) extends AppCompatActivity.
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+}

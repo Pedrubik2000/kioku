@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Two stacked flashcards with a star. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#B3D4F5"
+        android:pathData="M38,30h36a4,4 0,0 1,4 4v44a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-44a4,4 0,0 1,4 -4z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,26h36a4,4 0,0 1,4 4v44a4,4 0,0 1,-4 4h-36a4,4 0,0 1,-4 -4v-44a4,4 0,0 1,4 -4z" />
+    <path
+        android:fillColor="#2F6FB2"
+        android:pathData="M50,38l4.1,8.3 9.2,1.3 -6.6,6.5 1.6,9.1 -8.3,-4.3 -8.3,4.3 1.6,-9.1 -6.6,-6.5 9.2,-1.3z" />
+</vector>
