@@ -1,0 +1,101 @@
+"""Start Anki with defaults suited to a phone.
+
+Anki reads its UI scale, video driver and update-check flag from the profile
+metadata, overriding any environment variable, so patch the ProfileManager
+accessors before Anki starts. The UI scale only changes the default; a value
+set later in Preferences still wins.
+"""
+
+import os
+import sys
+
+
+def provide_qtquick_stub() -> None:
+    """Termux's pyqt6 is built without the QtQuick bindings. Anki imports them
+    only to pick the Qt Quick graphics API, which QT_QUICK_BACKEND=software
+    (set by session.sh) already does, so a stand-in is enough."""
+    try:
+        import PyQt6.QtQuick  # noqa: F401
+        return
+    except ImportError:
+        pass
+    import enum
+    import types
+
+    class QSGRendererInterface:
+        class GraphicsApi(enum.Enum):
+            Unknown = 0
+            Software = 1
+            OpenVG = 2
+            OpenGL = 3
+            Direct3D11 = 4
+            Vulkan = 5
+            Metal = 6
+            Null = 7
+            Direct3D12 = 8
+
+    class QQuickWindow:
+        @staticmethod
+        def setGraphicsApi(api: "QSGRendererInterface.GraphicsApi") -> None:
+            pass
+
+    module = types.ModuleType("PyQt6.QtQuick")
+    module.QQuickWindow = QQuickWindow
+    module.QSGRendererInterface = QSGRendererInterface
+    module.__all__ = ["QQuickWindow", "QSGRendererInterface"]
+    sys.modules["PyQt6.QtQuick"] = module
+
+
+def provide_opengl_placeholders() -> None:
+    """Termux's pyqt6 is also built without Qt's OpenGL classes. Anki imports
+    QOpenGLContext but only uses it on Qt 5, so a placeholder is enough."""
+    from PyQt6 import QtGui
+
+    for name in ("QOpenGLContext",):
+        if not hasattr(QtGui, name):
+            setattr(QtGui, name, type(name, (), {}))
+
+
+provide_qtquick_stub()
+provide_opengl_placeholders()
+
+from aqt.profiles import ProfileManager, VideoDriver  # noqa: E402
+
+DEFAULT_SCALE = float(os.environ.get("ANKIDX_SCALE", "2.0"))
+
+
+def ui_scale(self: ProfileManager) -> float:
+    return max(self.meta.get("uiScale", DEFAULT_SCALE), 1)
+
+
+def check_for_updates(self: ProfileManager) -> bool:
+    # Updates ship with the Android app, not through Anki's own updater.
+    return False
+
+
+def video_driver(self: ProfileManager) -> VideoDriver:
+    # No OpenGL stack is bundled.
+    return VideoDriver.Software
+
+
+def signal_ready() -> None:
+    # Tells the Android app to swap its splash screen for the display.
+    path = os.environ.get("ANKIDX_READY_FILE")
+    if path:
+        open(path, "w").close()
+
+
+ProfileManager.uiScale = ui_scale
+ProfileManager.check_for_updates = check_for_updates
+ProfileManager.video_driver = video_driver
+
+import aqt  # noqa: E402
+from aqt import gui_hooks  # noqa: E402
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ankidesk_mobile  # noqa: E402
+
+ankidesk_mobile.setup()
+gui_hooks.main_window_did_init.append(signal_ready)
+
+aqt.run()

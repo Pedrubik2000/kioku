@@ -1,0 +1,20 @@
+#!/data/data/com.termux/files/usr/bin/python
+"""Toggle the app grid; start the shell process if it is not running yet."""
+import os
+import socket
+import subprocess
+import sys
+
+PREFIX = "/data/data/com.termux/files/usr"
+sys.path.insert(0, os.path.join(PREFIX, "share/ankidx"))
+from ankidesk_menu import SHELL_SOCKET  # noqa: E402
+
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+try:
+    s.connect(SHELL_SOCKET)
+    s.sendall(b"toggle\n")
+except OSError:
+    subprocess.Popen([sys.executable, os.path.join(PREFIX, "share/ankidx/ankidesk_shell.py"), "--show"],
+                     start_new_session=True)
+finally:
+    s.close()

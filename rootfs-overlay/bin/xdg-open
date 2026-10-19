@@ -1,0 +1,7 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Hand URLs and files to Android. The app watches this directory and opens
+# each request with an ACTION_VIEW intent.
+dir="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/ankidx-open"
+mkdir -p "$dir"
+req="$dir/.req.$$"
+printf '%s' "$1" > "$req" && mv "$req" "$dir/req.$$"

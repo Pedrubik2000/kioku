@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<!-- JWM config tuned for a phone.
+     - Main windows (Anki, Browse, Add) open maximized above a bottom dock.
+     - Dialogs (About, Preferences, message boxes) stay centered, on screen and
+       on top of their parent, and always have a title bar with a close button,
+       so nothing can end up hidden or unclosable.
+     - Dock: "Apps" (app grid, software center, settings: ankidesk_shell.py),
+       open windows (tap to switch), clock.
+     Sizes are in X pixels, which are the phone's physical pixels. -->
+<JWM>
+    <Group>
+        <Type>normal</Type>
+        <Option>maximized</Option>
+    </Group>
+    <Group>
+        <Type>dialog</Type>
+        <Option>centered</Option>
+        <Option>constrain</Option>
+        <Option>layer:above</Option>
+    </Group>
+    <Group>
+        <Type>splash</Type>
+        <Option>centered</Option>
+        <Option>notitle</Option>
+    </Group>
+    <Group>
+        <Class>st-256color</Class>
+        <Option>maximized</Option>
+    </Group>
+
+
+    <!-- Bottom dock: on a portrait phone width is the scarce axis. -->
+    <Tray x="0" y="-1" height="104" autohide="off" layer="above">
+        <TrayButton label="  Apps  ">exec:ankidesk-apps</TrayButton>
+        <TaskList maxwidth="420"/>
+        <Clock format="%H:%M"/>
+    </Tray>
+
+    <WindowStyle decorations="flat">
+        <Font>DejaVu Sans:bold:pixelsize=32</Font>
+        <Height>84</Height>
+        <Width>2</Width>
+        <Corner>0</Corner>
+        <Foreground>#F2E6EE</Foreground>
+        <Background>#3D2A38</Background>
+        <Outline>#2C001E</Outline>
+        <Opacity>1.0</Opacity>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#5E2750</Background>
+            <Outline>#E95420</Outline>
+            <Opacity>1.0</Opacity>
+        </Active>
+    </WindowStyle>
+    <TrayStyle decorations="flat">
+        <Font>DejaVu Sans:bold:pixelsize=32</Font>
+        <Background>#2C001E</Background>
+        <Foreground>#FFFFFF</Foreground>
+        <Opacity>0.95</Opacity>
+    </TrayStyle>
+    <TaskListStyle list="all" group="false">
+        <Font>DejaVu Sans:pixelsize=30</Font>
+        <Foreground>#FFFFFF</Foreground>
+        <Background>#2C001E</Background>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#E95420</Background>
+        </Active>
+    </TaskListStyle>
+    <MenuStyle decorations="flat">
+        <Font>DejaVu Sans:pixelsize=38</Font>
+        <Foreground>#FFFFFF</Foreground>
+        <Background>#3D2A38</Background>
+        <Active>
+            <Foreground>#FFFFFF</Foreground>
+            <Background>#E95420</Background>
+        </Active>
+        <Opacity>1.0</Opacity>
+    </MenuStyle>
+    <ClockStyle>
+        <Font>DejaVu Sans:bold:pixelsize=32</Font>
+        <Foreground>#FFFFFF</Foreground>
+    </ClockStyle>
+
+    <Desktops width="1" height="1">
+        <Background type="gradient">#77216F:#2C001E</Background>
+    </Desktops>
+    <FocusModel>click</FocusModel>
+    <SnapMode distance="10">border</SnapMode>
+    <MoveMode>opaque</MoveMode>
+    <ResizeMode>opaque</ResizeMode>
+    <DoubleClickSpeed>400</DoubleClickSpeed>
+    <DoubleClickDelta>16</DoubleClickDelta>
+
+    <Key key="Escape" mask="A">close</Key>
+    <Key key="Tab" mask="A">next</Key>
+</JWM>
