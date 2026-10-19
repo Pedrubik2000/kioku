@@ -47,6 +47,7 @@ class DragScroll(QObject):
         self.target: QObject | None = None
         self.dragging = False
         self.cancelling = False
+        self.press: tuple[int, float, float] | None = None  # the press being delivered
         self.x0 = self.y0 = 0.0
         self.h0 = self.v0 = 0
         self.samples: list[tuple[float, float, float]] = []
@@ -72,12 +73,19 @@ class DragScroll(QObject):
         if t == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
             if not isinstance(obj, QWidget):
                 return False  # the QWindow sees it first; wait for the widget
+            # A press no widget accepts (a label, a card) goes on to the parents;
+            # only the first widget picks the area, or a parent outside every
+            # scroll area would drop it.
+            p = event.globalPosition()
+            key = (event.timestamp(), p.x(), p.y())
+            if key == self.press:
+                return False
+            self.press = key
             self.timer.stop()
             self.area = self._area_of(obj)
             if self.area is not None:
                 self.target = obj
                 self.dragging = False
-                p = event.globalPosition()
                 self.x0, self.y0 = p.x(), p.y()
                 self.h0 = self.area.horizontalScrollBar().value()
                 self.v0 = self.area.verticalScrollBar().value()

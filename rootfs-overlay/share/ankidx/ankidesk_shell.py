@@ -1251,6 +1251,7 @@ class Shell(QWidget):
         self._tick()
         self.show_page(0)
         self.showMaximized()
+        x11.ensure_maximized(int(self.winId()))
         self.activateWindow()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
@@ -1330,6 +1331,10 @@ def follow_rotation(shell: Shell) -> None:
         if width and landscape != theme.jwmrc_landscape():
             theme.write_jwmrc(landscape)
             restart_wm(states["last"])
+        # The shell may not have been maximized yet when the states were
+        # sampled (the first resize comes right after the session starts).
+        for delay in (1200, 2700):
+            QTimer.singleShot(delay, lambda: x11.ensure_maximized(int(shell.winId())))
         QTimer.singleShot(2000, sample.start)
 
     timer.timeout.connect(check)

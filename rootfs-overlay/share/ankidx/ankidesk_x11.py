@@ -343,6 +343,17 @@ def restore_states(maximized: list[int], minimized: list[int], minimize: bool = 
         pass
 
 
+def ensure_maximized(win: int) -> None:
+    """Maximize `win` if JWM has dropped it (screen resize, restart). Qt keeps
+    believing the window is maximized then, so showMaximized() does nothing."""
+    try:
+        with Display() as d:
+            if not d.is_maximized(win):
+                d.maximize(win)
+    except OSError:
+        pass
+
+
 def find(predicate) -> list[Window]:
     try:
         with Display() as d:

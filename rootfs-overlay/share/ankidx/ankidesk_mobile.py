@@ -159,11 +159,13 @@ def _on_js_message(handled: tuple[bool, object], message: str, context: object) 
 
 
 # Anki's deck list is laid out for a desktop window (deck column at least
-# 15em, 4em per count, 12px cell padding: ~700px). Let it fit a phone.
+# 15em, 4em per count, 12px cell padding: ~700px). Let it fit a phone. The
+# table's width includes its padding and border, or it is wider than the page
+# and scrolls sideways.
 _DECK_BROWSER_CSS = """
 <style>
 body { margin: 1em 0.25em; }
-table { padding: 0.5rem; width: 100%; }
+table { padding: 0.5rem; width: 100%; box-sizing: border-box; }
 .decktd { min-width: 0; max-width: none; white-space: normal; }
 .count { min-width: 2.2em; }
 tr.deck td, .fancy tr.deck td { padding: 6px 4px; }
