@@ -58,6 +58,12 @@ def install() -> None:
     print("Kioku: dev command channel active")
 
 
+class _Capture(io.StringIO):
+    # aqt.webview encodes web console messages with sys.stdout.encoding,
+    # which is None on a plain StringIO
+    encoding = "utf-8"
+
+
 def _poll() -> None:
     if not os.path.exists(CMD):
         return
@@ -69,7 +75,7 @@ def _poll() -> None:
     import aqt
 
     _namespace.update(aqt=aqt, mw=aqt.mw, shot=shot, widgets=widgets)
-    buf = io.StringIO()
+    buf = _Capture()
     with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
         try:
             exec(compile(code, "kioku-cmd", "exec"), _namespace)
