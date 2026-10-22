@@ -64,3 +64,10 @@ sdist pyqt6-sip "$PYQT6_SIP_VERSION" "pyqt6_sip-$PYQT6_SIP_VERSION"
 sdist orjson "$ORJSON_VERSION" "orjson-$ORJSON_VERSION"
 sdist rpds-py "$RPDS_VERSION" "rpds_py-$RPDS_VERSION"
 sdist markupsafe "$MARKUPSAFE_VERSION" "markupsafe-$MARKUPSAFE_VERSION"
+
+# orjson's build.rs turns on its AVX-512 code by the build machine's arch,
+# which breaks the arm64 build on an x86_64 host (CI)
+PATCH=$ROOT/patches/orjson-target-arch.patch
+if ! patch -R -s -f --dry-run -d "sdist/orjson-$ORJSON_VERSION" -p1 < "$PATCH" > /dev/null; then
+    patch -s -d "sdist/orjson-$ORJSON_VERSION" -p1 < "$PATCH"
+fi
