@@ -10,7 +10,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/krmanik/kioku/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/krmanik/kioku?label=download&style=for-the-badge&color=2563EB"></a>
+  <a href="https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-iOS-0.2.1-unsigned.ipa"><img alt="Download for iOS" src="https://img.shields.io/badge/iOS-IPA%20%C2%B7%2039%20MB-000000?style=for-the-badge&logo=apple&logoColor=white"></a>
+  <a href="https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-Android-0.2.1-arm64.apk"><img alt="Download for Android (native)" src="https://img.shields.io/badge/Android-APK%20%C2%B7%2048%20MB-3DDC84?style=for-the-badge&logo=android&logoColor=white"></a>
+  <a href="https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-Termux-0.2.1-arm64.apk"><img alt="Download for Android (Termux)" src="https://img.shields.io/badge/Termux-APK%20%C2%B7%20235%20MB-2563EB?style=for-the-badge&logo=gnubash&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/krmanik/kioku/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/krmanik/kioku?label=latest%20release&color=2563EB"></a>
 </p>
 
 <p align="center">
@@ -67,7 +73,7 @@ More screenshots: [docs/screenshots.md](docs/screenshots.md).
 | | iPhone, iPad | Android, native | Android, Termux |
 | --- | --- | --- | --- |
 | **Needs** | iOS 17+ | Android 9+, arm64 | Android 7+, arm64, ~1 GB free, 3 GB+ RAM recommended |
-| **Download** | ~42 MB IPA | ~50 MB APK | ~245 MB APK |
+| **Download** | [39 MB IPA](https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-iOS-0.2.1-unsigned.ipa) | [48 MB APK](https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-Android-0.2.1-arm64.apk) | [235 MB APK](https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-Termux-0.2.1-arm64.apk) |
 | **How Anki runs** | Python 3.14, Qt 6.11 and PyQt6 compiled into the app | Python 3.14, Qt 6.11 and PyQt6 compiled into the app | Termux userland, termux-x11 display, JWM window manager |
 | **Web pages** (cards, stats, editor) | WKWebView | Android System WebView | Qt WebEngine (Chromium), as on the desktop |
 | **Windows** | Full screen, ‹ Back closes, popups as cards above the keyboard | Full screen, Back key closes, popups as cards above the keyboard | Desktop windows, a dock, touch or mouse pad mode |
@@ -115,23 +121,51 @@ Termux variant only:
 
 ## Install
 
-All downloads are on the **[latest release](https://github.com/krmanik/kioku/releases/latest)**.
+Current version: **0.2.1** ([release notes and checksums](https://github.com/krmanik/kioku/releases/tag/v0.2.1),
+[all releases](https://github.com/krmanik/kioku/releases)).
+
+| Variant | Download |
+| --- | --- |
+| iPhone, iPad | [`Kioku-iOS-0.2.1-unsigned.ipa`](https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-iOS-0.2.1-unsigned.ipa) (39 MB) or the AltStore source below |
+| Android, native | [`Kioku-Android-0.2.1-arm64.apk`](https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-Android-0.2.1-arm64.apk) (48 MB) |
+| Android, Termux | [`Kioku-Termux-0.2.1-arm64.apk`](https://github.com/krmanik/kioku/releases/download/v0.2.1/Kioku-Termux-0.2.1-arm64.apk) (235 MB) |
 
 **iPhone, iPad:** in [AltStore](https://altstore.io), add the source
 `https://github.com/krmanik/kioku/releases/latest/download/altstore.json`
-(Sources → +) and install Kioku. Or sideload
-`Kioku-iOS-<version>-unsigned.ipa` with any tool that signs apps with your
-Apple ID (Sideloadly, …).
+(Sources → +) and install Kioku; new versions then show up in AltStore. Or
+sideload the `.ipa` with any tool that signs apps with your Apple ID
+([Sideloadly](https://sideloadly.io), …). Apps signed with a free Apple ID
+expire after 7 days; AltStore refreshes them while AltServer runs on your
+computer.
 
-**Android, native:** download `Kioku-Android-<version>-arm64.apk`, open it and
-allow installing from your browser or file manager.
+**Android, native:** download the APK on your phone, open it and allow
+installing from your browser or file manager.
 
-**Android, Termux:** download `Kioku-Termux-<version>-arm64.apk` and install it
+**Android, Termux:** download the APK and install it
 the same way. The first start unpacks the runtime, about a minute. Both
 Android variants can be installed side by side.
 
 **Moving your collection:** sync with AnkiWeb (Sync in the top bar), or export
 a `.colpkg` from Anki on your computer and import it in Kioku.
+
+### Troubleshooting: AltServer
+
+**"AltServer could not retrieve anisette data value “machineID”"** (AltServer
+on newer macOS, such as the macOS 27 betas). AltServer cannot get the device
+data Apple's sign-in needs. Until AltStore releases a fix:
+
+- Use [Sideloadly](https://sideloadly.io) to install the `.ipa` instead.
+- Or try a community build of AltServer with an anisette fix, for example
+  [kimziro/altserver-macos27-anisette-fix](https://github.com/kimziro/altserver-macos27-anisette-fix)
+  or [an-vo90/AltServer-1.8-build97-Anisette-Fix-macos27-alpha](https://github.com/an-vo90/AltServer-1.8-build97-Anisette-Fix-macos27-alpha).
+  These are unofficial and not reviewed by this project: they handle your
+  Apple ID sign-in, so use them only if you trust them, and preferably with
+  a separate Apple ID made just for sideloading.
+
+**"Failed to verify code signature … (The provisioning profile is banned.)"**
+when installing AltStore: Apple has temporarily blocked sideloading for that
+Apple ID. Wait, or sign in to AltServer with another Apple ID used only for
+sideloading.
 
 ## Repository
 
