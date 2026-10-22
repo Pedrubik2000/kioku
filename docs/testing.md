@@ -73,6 +73,63 @@ Installed from AnkiWeb inside the app; all 15 load without errors.
 AnkiWeb returned 404 for 516643804, 2091361802 and 1572969437 (codes no
 longer published).
 
-## Results: Android
+## Results: Android (emulator, Android 17 arm64, 16 KB pages, Anki 26.8.1)
 
-Not run yet.
+Android has the same tools: `android/tools/run_device.sh` (build, install,
+launch in dev mode, print the log; `KIOKU_NO_BUILD=1` reinstalls the last
+build), `devcmd.sh [--shot] 'python'` (screenshots with `adb screencap`) and
+`sweep.sh`. Collections are pushed with
+`adb push … /sdcard/Android/data/io.ankidesk.kioku/files/Import/`.
+
+Emulator: start it with `emulator -avd Medium_Phone -gpu swiftshader_indirect
+-feature GLESDynamicVersion`. With `-gpu host` on a Mac it offers only OpenGL
+ES 3.0, and WebView aborts the app on pages with embedded video (see
+docs/fixes.md).
+
+Collections: the same 41, 602, 61,199 and 258,430-card profiles imported,
+counts identical to the desktop.
+
+| Area | Result |
+| --- | --- |
+| Start-up, profiles, switching profiles | works |
+| Menu bar | works (drawn as a widget) |
+| Back key | closes the top window; on the main window moves the app to the background |
+| Background and resume | works; no error dialog |
+| Deck list (258k cards) | works |
+| Reviewing: question, answer, answer buttons, revlog written | works |
+| Card audio: mp3, wav, ogg (Vorbis), opus | works, Anki's queue gets "done" for each |
+| Statistics (new stats page, charts, calendar) | works |
+| Statistics: Save PDF | works (5-page PDF in Exports/) |
+| Browse, sidebar, notes with embedded YouTube video | works (emulator: needs the ES 3.1 setting above) |
+| Add, editor | works (note added through the Add window) |
+| Import .colpkg | works |
+| Export (.apkg) | writes to Exports/ in the app's external files folder |
+| About, Browse, Add, Statistics, Preferences, Note Types, Deck Options, Filtered Deck, Study Deck, Empty Cards, Export, Add-ons | open full screen, nothing wider than the screen (`sweep.sh`, also after the small-dialog change) |
+| HTTPS (add-on downloads) | works after the CA bundle fix |
+| Image occlusion / file picking | system picker opens; needs a hand test |
+| AnkiWeb sync (User 4) | works: login, full sync (download, 39,754 cards), media sync; still logged in after a force-stop and restart |
+| Popups: AnkiWeb login, rename prompt, message boxes | bordered card sized to its content; above the keyboard while typing |
+| Top bar height over 5 cold starts | 34 px each time (the retry was needed in 2 of 5) |
+| Samsung M30s (real device) | not tested yet |
+
+### Add-ons (Android)
+
+All 15 installed from AnkiWeb inside the app and load without errors.
+
+| Add-on | Result |
+| --- | --- |
+| AnkiConnect | works: version 6, deckNames (252 decks) |
+| Review Heatmap | works: heatmap drawn on the deck list (366 day cells) |
+| Anki Simulator | opens |
+| AnKing Note Types Easy Customization | loads, AnKing menu; shows a tutorial at start-up (add-on loading waits until it is closed, as on the desktop) |
+| Advanced Browser | loads (its modules are active in Browse) |
+| Fill the blanks | loads |
+| Colorful Tags / Hierarchical Tags | loads; sidebar works |
+| Customize Keyboard Shortcuts | loads (logs a deprecation warning for `tr(TR.…)`) |
+| Edit Field During Review Cloze | works (its EFDRC script is in the card page) |
+| Speed Focus Mode | loads |
+| True Retention | works: its rows in the legacy statistics window (Shift+Stats) |
+| HyperTTS | works: configuration window opens; editor buttons shown |
+| AnkiWebView Inspector | loads; needs Qt WebEngine dev tools (use chrome://inspect: web views are debuggable) |
+| Color Confirmation | works (popup after answering) |
+| Japanese Support | works: Kanji Stats opens with statistics; MeCab readings to check |
