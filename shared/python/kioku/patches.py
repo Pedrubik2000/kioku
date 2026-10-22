@@ -44,6 +44,7 @@ def apply() -> None:
     _patch_audio()
     _patch_profile_saving()
     _patch_bar_heights()
+    _patch_review_menu()
 
 
 def _dark_mode() -> bool:
@@ -227,6 +228,50 @@ def _patch_bar_heights() -> None:
         original_on_height(self, qvar)
 
     AnkiWebView._onHeight = on_height
+
+
+def _patch_review_menu() -> None:
+    """The review screen's Edit and More buttons are hidden below 583 px
+    (reviewer-bottom.css), which leaves a phone without them: desktop users
+    press E and M instead. Offer both in the Edit menu while reviewing."""
+    import aqt
+    from aqt import gui_hooks
+    from aqt.qt import QAction, QMenu, Qt, qconnect
+    from aqt.utils import tr
+
+    def inert(menu: QMenu) -> None:
+        # Anki's menu rows carry shortcuts the reviewer already handles; as
+        # window shortcuts in the menu bar they would make those ambiguous
+        for action in menu.actions():
+            action.setShortcutContext(Qt.ShortcutContext.WidgetShortcut)
+            if action.menu() is not None:
+                inert(action.menu())
+
+    def setup(mw) -> None:  # type: ignore[no-untyped-def]
+        menu = mw.form.menuEdit
+        separator = menu.addSeparator()
+        edit = QAction(tr.editing_edit_current(), mw)
+        qconnect(edit.triggered, lambda: mw.onEditCurrent())
+        menu.addAction(edit)
+        more = menu.addMenu(tr.studying_more())
+
+        def fill_more() -> None:
+            more.clear()
+            reviewer = mw.reviewer
+            reviewer._addMenuItems(more, reviewer._contextMenu())
+            gui_hooks.reviewer_will_show_context_menu(reviewer, more)
+            inert(more)
+
+        def update() -> None:
+            reviewing = mw.state == "review" and mw.reviewer.card is not None
+            for action in (separator, edit, more.menuAction()):
+                action.setVisible(reviewing)
+
+        qconnect(more.aboutToShow, fill_more)
+        qconnect(menu.aboutToShow, update)
+        update()
+
+    gui_hooks.main_window_did_init.append(lambda: setup(aqt.mw))
 
 
 def _patch_audio() -> None:

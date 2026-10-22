@@ -92,6 +92,7 @@ Android).
 | Android: the keyboard shows "Next" in Browse's search, prompts and the AnkiWeb login; pressing it moves the focus instead of searching or confirming | Qt reports `Qt::EnterKeyNext` for single-line fields that have a widget after them (the focus object is often the `QComboBox`, not its line edit) | `windows.EnterKeyFilter` answers `ImEnterKeyType` with `EnterKeyDone` for `QLineEdit`, `QComboBox` and `QAbstractSpinBox` (Android only); Done sends Return |
 | iOS: `devcmd.sh` printed "copy failed" although the command ran | `devicectl` reads the copied file back and fails when the app has already picked it up and deleted it | `devcmd.sh` waits for the output either way |
 | Dev mode: tracebacks in the log from `aqt.webview` (`encode() argument 'encoding' must be str, not None`) while a command ran | the command's captured stdout was a plain `StringIO`, whose `encoding` is `None` | `devtools._Capture` has `encoding = "utf-8"` |
+| Review screen on a phone has no Edit or More button (edit the note, flag, bury, suspend, delete, card info) | Anki hides them below 583 px (`.stat` in `reviewer-bottom.css`); desktop users press E and M instead | `patches._patch_review_menu`: the Edit menu gets **Edit Current** and a **More** submenu (the reviewer's own context menu, add-on items included) while reviewing; their shortcuts only apply inside the menu, so the reviewer's keys keep working |
 
 ## Add-ons
 
