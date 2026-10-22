@@ -34,6 +34,11 @@ def apply() -> None:
     # content:// URIs (Android); the platform pickers copy into the app.
     aqt.utils.getFile.__code__ = _get_file.__code__
     aqt.utils.getSaveFile.__code__ = _get_save_file.__code__
+    # Taps go to the native web views, so Qt often has no focus widget (or
+    # one in a window that has closed); Anki then takes changes made on the
+    # main screen (e.g. collapsing a deck) for changes from another window,
+    # dims the main screen and waits for a focus change to undo it.
+    aqt.utils.current_window.__code__ = _current_window.__code__
 
     _patch_app()
     _patch_audio()
@@ -59,6 +64,19 @@ def _show_in_folder(path: str) -> None:
     import kioku_platform
 
     kioku_platform.open_folder(path if os.path.isdir(path) else os.path.dirname(path))
+
+
+def _current_window():  # type: ignore[no-untyped-def]
+    import aqt
+    from aqt.qt import QApplication
+
+    widget = QApplication.focusWidget()
+    window = widget.window() if widget is not None else None
+    if window is None or not window.isVisible():
+        window = QApplication.activeModalWidget() or QApplication.activeWindow()
+    if window is None or not window.isVisible():
+        window = aqt.mw
+    return window
 
 
 def _get_file(parent, title, cb, filter="*", dir=None, key=None, multi=False):  # type: ignore[no-untyped-def]
