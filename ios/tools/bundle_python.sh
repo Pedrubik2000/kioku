@@ -42,6 +42,15 @@ install_so() {
     mv "$full" "$APP/$fw/$modname"
     echo "$fw/$modname" > "${full%.so}.fwork"
     echo "${rel%.so}.fwork" > "$APP/$fw/$modname.origin"
+    # privacy manifest: one shipped next to the module (as CPython's own
+    # helper installs it), else ours for the modules that embed OpenSSL
+    local shipped
+    shipped="$(dirname "$full")/$(basename "${full%%.*}").xcprivacy"
+    if [ -f "$shipped" ]; then
+        mv "$shipped" "$APP/$fw/PrivacyInfo.xcprivacy"
+    elif [ "$modname" = _ssl ] || [ "$modname" = _hashlib ]; then
+        cp "$ROOT/res/openssl.xcprivacy" "$APP/$fw/PrivacyInfo.xcprivacy"
+    fi
     if [ -n "$SIGN_ID" ]; then
         /usr/bin/codesign --force --sign "$SIGN_ID" -o runtime --timestamp=none \
             --preserve-metadata=identifier,entitlements,flags \
