@@ -462,6 +462,7 @@ class QWebEnginePage(QObject, _Lenient):
     windowCloseRequested = pyqtSignal()
     featurePermissionRequested = pyqtSignal(QUrl, object)
     renderProcessTerminated = pyqtSignal(object, int)
+    pdfPrintingFinished = pyqtSignal(str, bool)
 
     # WKNavigationType -> Qt navigation type
     _NAV_TYPES = {0: 0, 1: 2, 2: 3, 3: 4, 4: 2, -1: 5}
@@ -485,6 +486,7 @@ class QWebEnginePage(QObject, _Lenient):
         self._retried = False
         self._web.on_console = self._on_console  # type: ignore[method-assign]
         self._web.on_selection = self._on_selection  # type: ignore[method-assign]
+        self._web.on_pdf_finished = self.pdfPrintingFinished.emit  # type: ignore[method-assign]
         self._web.on_channel_call = self._on_channel_call  # type: ignore[method-assign]
         self._web.on_navigation = self._on_navigation  # type: ignore[method-assign]
         self._web.on_load_started = self.loadStarted.emit  # type: ignore[method-assign]
@@ -655,8 +657,14 @@ class QWebEnginePage(QObject, _Lenient):
         else:
             self._web.evaluate(script, lambda value: callback(_qt_value(value)))
 
-    def printToPdf(self, *args: Any) -> None:
-        logger.info("printToPdf is not supported on iOS")
+    def printToPdf(self, path: Any, *args: Any) -> None:
+        """Only the file form (Anki's Statistics → Save PDF); the page layout
+        argument is ignored."""
+        print_pdf = getattr(self._web, "print_pdf", None)
+        if print_pdf is None or not isinstance(path, str):
+            logger.info("printToPdf is not supported on this platform")
+            return
+        print_pdf(path)
 
     # Overridable hooks -----------------------------------------------------
 

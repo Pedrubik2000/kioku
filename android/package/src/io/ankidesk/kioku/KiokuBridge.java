@@ -1,0 +1,561 @@
+package io.ankidesk.kioku;
+
+import android.app.Activity;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.Intent;
+import android.content.res.Configuration;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.media.MediaPlayer;
+import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
+import android.provider.OpenableColumns;
+import android.util.Log;
+import android.view.View;
+import android.view.WindowManager;
+import android.webkit.ConsoleMessage;
+import android.webkit.JavascriptInterface;
+import android.webkit.JsResult;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+import androidx.webkit.ScriptHandler;
+import androidx.webkit.WebViewCompat;
+import androidx.webkit.WebViewFeature;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.FutureTask;
+
+/**
+ * Everything Kioku's Python code needs from Android (python/kioku_platform),
+ * reached through the _kioku_android module (src/kioku_android.cpp):
+ *
+ *   call(method, json args) -> String     from Python (Qt's thread)
+ *   nativeEvent(json)                     to Python, delivered on Qt's thread
+ *
+ * Web views stand in for Qt WebEngine; file picking copies the chosen files
+ * into the app (Python cannot open content:// URIs); MediaPlayer plays card
+ * audio (Python cannot start mpv).
+ */
+public class KiokuBridge {
+    private static final String TAG = "Kioku";
+    private static final int PICK_FILES = 0x6b69;
+
+    static Activity activity;
+    private static final Handler ui = new Handler(Looper.getMainLooper());
+    private static final Map<Integer, Page> pages = new ConcurrentHashMap<>();
+    private static MediaPlayer player;
+
+    /** Implemented in src/kioku_android.cpp. */
+    static native void nativeEvent(String json);
+
+    private static void event(JSONObject json) {
+        try {
+            nativeEvent(json.toString());
+        } catch (UnsatisfiedLinkError e) {
+            Log.w(TAG, "event before the native side was ready: " + json);
+        }
+    }
+
+    private static JSONObject obj(Object... keyValues) {
+        JSONObject o = new JSONObject();
+        try {
+            for (int i = 0; i < keyValues.length; i += 2) {
+                o.put((String) keyValues[i], keyValues[i + 1]);
+            }
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        return o;
+    }
+
+    private static <T> T onUiThread(Callable<T> work) throws Exception {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            return work.call();
+        }
+        FutureTask<T> task = new FutureTask<>(work);
+        ui.post(task);
+        return task.get();
+    }
+
+    /** The entry point for Python. Returns a JSON value or "null". */
+    public static String call(String method, String argsJson) {
+        try {
+            JSONObject a = new JSONObject(argsJson);
+            Object result = dispatch(method, a);
+            if (result == null) {
+                return "null";
+            }
+            // wrap() leaves strings as they are, which is not JSON
+            return result instanceof String ? JSONObject.quote((String) result)
+                    : JSONObject.wrap(result).toString();
+        } catch (Throwable e) {
+            Log.e(TAG, "call " + method + " failed", e);
+            return obj("error", e.toString()).toString();
+        }
+    }
+
+    private static Object dispatch(String method, JSONObject a) throws Exception {
+        switch (method) {
+            case "webview.create": {
+                int id = a.getInt("id");
+                onUiThread(() -> pages.put(id, new Page(id)));
+                return true;
+            }
+            case "webview.url":
+                return onUiThread(() -> page(a).view.getUrl());
+            case "webview.title":
+                return onUiThread(() -> page(a).view.getTitle());
+            case "darkMode":
+                return (activity.getResources().getConfiguration().uiMode
+                        & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+            case "density":
+                return activity.getResources().getDisplayMetrics().density;
+        }
+        // everything else runs on the UI thread without waiting
+        ui.post(() -> {
+            try {
+                dispatchAsync(method, a);
+            } catch (Exception e) {
+                Log.e(TAG, "call " + method + " failed", e);
+            }
+        });
+        return null;
+    }
+
+    private static Page page(JSONObject a) throws JSONException {
+        Page p = pages.get(a.getInt("id"));
+        if (p == null) {
+            throw new IllegalStateException("no web view " + a.getInt("id"));
+        }
+        return p;
+    }
+
+    private static void dispatchAsync(String method, JSONObject a) throws Exception {
+        switch (method) {
+            case "webview.scripts":
+                page(a).setScripts(a.getJSONArray("scripts"));
+                break;
+            case "webview.load": {
+                Map<String, String> headers = new HashMap<>();
+                JSONObject h = a.optJSONObject("headers");
+                if (h != null) {
+                    for (java.util.Iterator<String> it = h.keys(); it.hasNext(); ) {
+                        String k = it.next();
+                        headers.put(k, h.getString(k));
+                    }
+                }
+                page(a).load(a.getString("url"), headers);
+                break;
+            }
+            case "webview.html":
+                page(a).view.loadDataWithBaseURL(a.optString("base", null), a.getString("html"),
+                        "text/html", "utf-8", null);
+                break;
+            case "webview.eval": {
+                Page p = page(a);
+                int cb = a.optInt("cb", 0);
+                p.view.evaluateJavascript(a.getString("js"), value -> {
+                    if (cb != 0) {
+                        event(obj("type", "eval", "id", p.id, "cb", cb, "value", value));
+                    }
+                });
+                break;
+            }
+            case "webview.reply":
+                page(a).view.evaluateJavascript("window.__kiokuResolve(" + a.getInt("call") + ","
+                        + a.getBoolean("ok") + "," + JSONObject.quote(a.getString("value")) + ")", null);
+                break;
+            case "webview.pdf": {
+                Page p = page(a);
+                String path = a.getString("path");
+                android.print.KiokuPdfWriter.write(p.view.createPrintDocumentAdapter("Kioku"),
+                        new File(path), ok -> event(obj("type", "pdf", "id", p.id, "path", path, "ok", ok)));
+                break;
+            }
+            case "webview.confirmResult":
+                page(a).answerConfirm(a.getInt("token"), a.getBoolean("ok"));
+                break;
+            case "webview.background":
+                page(a).view.setBackgroundColor((int) a.getLong("argb"));
+                break;
+            case "webview.zoom":
+                page(a).view.getSettings().setTextZoom((int) Math.round(a.getDouble("factor") * 100));
+                break;
+            case "webview.reload":
+                page(a).view.reload();
+                break;
+            case "webview.stop":
+                page(a).view.stopLoading();
+                break;
+            case "webview.back":
+                page(a).view.goBack();
+                break;
+            case "webview.forward":
+                page(a).view.goForward();
+                break;
+            case "webview.destroy": {
+                Page p = pages.remove(a.getInt("id"));
+                if (p != null) {
+                    p.view.destroy();
+                }
+                break;
+            }
+            case "openUrl":
+                try {
+                    activity.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(a.getString("url"))));
+                } catch (ActivityNotFoundException e) {
+                    Log.w(TAG, "nothing opens " + a.getString("url"));
+                }
+                break;
+            case "pickFiles":
+                pickFiles(a.optBoolean("multi"), a.optString("mime", "*/*"));
+                break;
+            case "moveTaskToBack":
+                activity.moveTaskToBack(true);
+                break;
+            case "keepAwake":
+                activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                break;
+            case "audio.play":
+                playAudio(a.getString("path"));
+                break;
+            case "audio.stop":
+                stopAudio();
+                break;
+            case "audio.pause":
+                if (player != null) {
+                    if (player.isPlaying()) {
+                        player.pause();
+                    } else {
+                        player.start();
+                    }
+                }
+                break;
+            case "audio.seek":
+                if (player != null) {
+                    player.seekTo(Math.max(0, player.getCurrentPosition() + a.getInt("ms")));
+                }
+                break;
+            default:
+                Log.w(TAG, "unknown call " + method);
+        }
+    }
+
+    /** For QWindow::fromWinId(): the View to embed into a Qt widget. */
+    public static View getView(int id) {
+        Page p = pages.get(id);
+        return p == null ? null : p.view;
+    }
+
+    // Files ------------------------------------------------------------------
+
+    private static void pickFiles(boolean multi, String mime) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(mime);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multi);
+        activity.startActivityForResult(intent, PICK_FILES);
+    }
+
+    static boolean onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode != PICK_FILES) {
+            return false;
+        }
+        List<Uri> uris = new ArrayList<>();
+        if (resultCode == Activity.RESULT_OK && data != null) {
+            ClipData clip = data.getClipData();
+            if (clip != null) {
+                for (int i = 0; i < clip.getItemCount(); i++) {
+                    uris.add(clip.getItemAt(i).getUri());
+                }
+            } else if (data.getData() != null) {
+                uris.add(data.getData());
+            }
+        }
+        // copying can take a while (decks are large): not on the UI thread
+        new Thread(() -> {
+            JSONArray paths = new JSONArray();
+            File dir = new File(activity.getCacheDir(), "picked/" + System.currentTimeMillis());
+            dir.mkdirs();
+            for (Uri uri : uris) {
+                try {
+                    File out = new File(dir, displayName(uri));
+                    try (InputStream in = activity.getContentResolver().openInputStream(uri);
+                         OutputStream os = new FileOutputStream(out)) {
+                        byte[] buffer = new byte[1 << 16];
+                        int n;
+                        while ((n = in.read(buffer)) > 0) {
+                            os.write(buffer, 0, n);
+                        }
+                    }
+                    paths.put(out.getAbsolutePath());
+                } catch (Exception e) {
+                    Log.e(TAG, "copying " + uri + " failed", e);
+                }
+            }
+            event(obj("type", "picked", "paths", paths));
+        }).start();
+        return true;
+    }
+
+    private static String displayName(Uri uri) {
+        try (Cursor c = activity.getContentResolver().query(uri,
+                new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                String name = c.getString(0);
+                if (name != null && !name.isEmpty()) {
+                    return name.replace('/', '_');
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "file";
+    }
+
+    // Audio ------------------------------------------------------------------
+
+    private static void playAudio(String path) {
+        stopAudio();
+        MediaPlayer mp = new MediaPlayer();
+        try {
+            mp.setDataSource(path);
+            mp.setOnCompletionListener(m -> {
+                if (player == m) {
+                    stopAudio();
+                    event(obj("type", "audioDone"));
+                }
+            });
+            mp.setOnErrorListener((m, what, extra) -> {
+                Log.w(TAG, "cannot play " + path + " (" + what + "/" + extra + ")");
+                if (player == m) {
+                    stopAudio();
+                    event(obj("type", "audioDone"));
+                }
+                return true;
+            });
+            mp.prepare();
+            mp.start();
+            player = mp;
+        } catch (Exception e) {
+            Log.w(TAG, "cannot play " + path, e);
+            mp.release();
+            event(obj("type", "audioDone"));
+        }
+    }
+
+    private static void stopAudio() {
+        if (player != null) {
+            MediaPlayer mp = player;
+            player = null;
+            try {
+                mp.stop();
+            } catch (IllegalStateException ignored) {
+            }
+            mp.release();
+        }
+    }
+
+    // Web views --------------------------------------------------------------
+
+    /** One android.webkit.WebView, the backend of a QWebEnginePage. */
+    static class Page {
+        final int id;
+        final WebView view;
+        /** Tells documentReady() when the main frame's DOM is parsed. */
+        private static final String READY = "(function(){if(window.top!==window)return;"
+                + "var f=function(){kiokuAndroid.documentReady();};"
+                + "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',f);}"
+                + "else{f();}})();";
+        private final List<ScriptHandler> handlers = new ArrayList<>();
+        private final List<String> fallbackStart = new ArrayList<>();
+        private final List<String> fallbackEnd = new ArrayList<>();
+        /** Document-end scripts for the main frame, run by documentReady(). */
+        private final List<String> mainEnd = new ArrayList<>();
+        private final Map<Integer, JsResult> confirms = new HashMap<>();
+        private int nextConfirm = 1;
+        /** URLs Python allowed in acceptNavigationRequest(), loaded once without asking again. */
+        private final List<String> approved = Collections.synchronizedList(new ArrayList<>());
+
+        Page(int id) {
+            this.id = id;
+            view = new WebView(activity);
+            WebSettings s = view.getSettings();
+            s.setJavaScriptEnabled(true);
+            s.setDomStorageEnabled(true);
+            s.setMediaPlaybackRequiresUserGesture(false);
+            s.setAllowFileAccess(true);
+            s.setLoadWithOverviewMode(false);
+            s.setUseWideViewPort(true);
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            WebView.setWebContentsDebuggingEnabled(true);  // chrome://inspect
+            view.addJavascriptInterface(new JsInterface(), "kiokuAndroid");
+            view.setWebViewClient(new Client());
+            view.setWebChromeClient(new Chrome());
+        }
+
+        void setScripts(JSONArray scripts) throws JSONException {
+            for (ScriptHandler h : handlers) {
+                h.remove();
+            }
+            handlers.clear();
+            fallbackStart.clear();
+            fallbackEnd.clear();
+            mainEnd.clear();
+            boolean documentStart = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT);
+            for (int i = 0; i < scripts.length(); i++) {
+                JSONObject s = scripts.getJSONObject(i);
+                String source = s.getString("source");
+                boolean atEnd = s.getInt("when") == 1;
+                if (!documentStart) {
+                    (atEnd ? fallbackEnd : fallbackStart).add(source);
+                } else if (atEnd && s.optBoolean("mainOnly", true)) {
+                    // evaluateJavascript() once the DOM is parsed (READY): like
+                    // WKUserScript's document end it runs at the top level, so
+                    // declarations stay global (Anki's bridge script declares
+                    // pycmd with var), and the page's CSP does not apply (the
+                    // editor's forbids inline scripts and eval)
+                    mainEnd.add(source);
+                } else {
+                    if (atEnd) {
+                        source = "(function(){var f=function(){" + source + "\n};"
+                                + "if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',f);}"
+                                + "else{f();}})();";
+                    }
+                    handlers.add(WebViewCompat.addDocumentStartJavaScript(view, source,
+                            Collections.singleton("*")));
+                }
+            }
+            if (!mainEnd.isEmpty()) {
+                handlers.add(WebViewCompat.addDocumentStartJavaScript(view, READY,
+                        Collections.singleton("*")));
+            }
+        }
+
+        private void documentReady() {
+            for (String s : mainEnd) {
+                view.evaluateJavascript(s, null);
+            }
+        }
+
+        void load(String url, Map<String, String> headers) {
+            approved.add(url);
+            view.loadUrl(url, headers);
+        }
+
+        void answerConfirm(int token, boolean ok) {
+            JsResult r = confirms.remove(token);
+            if (r != null) {
+                if (ok) {
+                    r.confirm();
+                } else {
+                    r.cancel();
+                }
+            }
+        }
+
+        private static boolean isLocal(Uri uri) {
+            String scheme = uri.getScheme();
+            return "about".equals(scheme) || "data".equals(scheme) || "blob".equals(scheme)
+                    || "127.0.0.1".equals(uri.getHost());
+        }
+
+        class JsInterface {
+            @JavascriptInterface
+            public void send(String name, String text) {
+                event(obj("type", "message", "id", id, "name", name, "text", text));
+            }
+
+            @JavascriptInterface
+            public void documentReady() {
+                ui.post(Page.this::documentReady);
+            }
+
+            @JavascriptInterface
+            public void call(int callId, String text) {
+                event(obj("type", "channel", "id", id, "call", callId, "text", text));
+            }
+        }
+
+        class Client extends WebViewClient {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                if (approved.remove(url) || isLocal(request.getUrl())) {
+                    return false;
+                }
+                // ask Python (acceptNavigationRequest) asynchronously; it loads
+                // the URL itself if it allows it
+                event(obj("type", "navigate", "id", id, "url", url,
+                        "main", request.isForMainFrame(), "redirect", request.isRedirect()));
+                return true;
+            }
+
+            @Override
+            public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                for (String s : fallbackStart) {
+                    v.evaluateJavascript(s, null);
+                }
+                event(obj("type", "loadStarted", "id", id));
+            }
+
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                for (String s : fallbackEnd) {
+                    v.evaluateJavascript(s, null);
+                }
+                event(obj("type", "loadFinished", "id", id, "ok", true));
+            }
+
+            @Override
+            public void onReceivedError(WebView v, WebResourceRequest request, WebResourceError error) {
+                if (request.isForMainFrame()) {
+                    Log.w(TAG, "loading " + request.getUrl() + " failed: " + error.getDescription());
+                    event(obj("type", "loadFinished", "id", id, "ok", false));
+                }
+            }
+        }
+
+        class Chrome extends WebChromeClient {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {
+                return true;  // the page prelude forwards console output itself
+            }
+
+            @Override
+            public boolean onJsAlert(WebView v, String url, String message, JsResult result) {
+                result.confirm();
+                event(obj("type", "alert", "id", id, "text", message));
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView v, String url, String message, JsResult result) {
+                int token = nextConfirm++;
+                confirms.put(token, result);
+                event(obj("type", "confirm", "id", id, "token", token, "text", message));
+                return true;
+            }
+        }
+    }
+}

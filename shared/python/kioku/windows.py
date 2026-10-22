@@ -164,6 +164,14 @@ class WindowManager(QObject):
         if evt is None or not isinstance(obj, QWidget):
             return False
         kind = evt.type()
+        if kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            if evt.key() == Qt.Key.Key_Back:  # type: ignore[attr-defined]
+                # Android's Back: unhandled, it finishes the activity and
+                # quits Anki
+                if kind == QEvent.Type.KeyRelease:
+                    _go_back()
+                return True
+            return False
         if kind == QEvent.Type.Show and obj.isWindow():
             if self._manageable(obj):
                 # after the window's own show logic (e.g. restoring geometry)
@@ -278,6 +286,26 @@ def adapt_browser(browser: Any, bar: TitleBar) -> None:
 ADAPTERS = {"Browser": adapt_browser}
 
 _manager: WindowManager | None = None
+
+
+def _go_back() -> None:
+    """Close the topmost popup or window; on the main window, leave the app
+    running in the background like other Android apps."""
+    import aqt
+
+    w = (
+        QApplication.activePopupWidget()
+        or QApplication.activeModalWidget()
+        or QApplication.activeWindow()
+    )
+    if w is None or w is aqt.mw:
+        import kioku_platform
+
+        move_to_back = getattr(kioku_platform, "move_to_back", None)
+        if move_to_back is not None:
+            move_to_back()
+        return
+    w.close()
 
 
 def install(app: QApplication) -> None:

@@ -12,3 +12,4 @@ __pycache__/
 !local-debs/*.deb
 .DS_Store
 dist/
+build-testdata/

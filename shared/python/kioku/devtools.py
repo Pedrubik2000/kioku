@@ -1,7 +1,7 @@
 """Development helpers, active only when the app is launched with KIOKU_DEV=1
-(see the run scripts in each variant's tools/):
+or Documents/.kioku-dev exists (see the run scripts in each variant's tools/):
 
-- Qt messages go to the log file instead of the detached stderr;
+- Qt messages go to the log file, never to Anki's error dialog;
 - Documents/.kioku-cmd.py is executed on the main thread when it appears,
   its output written to Documents/.kioku-cmd.out;
 - shot(path) saves a screenshot of the whole UI, web views included.
@@ -28,13 +28,25 @@ _timer: QTimer | None = None
 _namespace: dict[str, Any] = {}
 
 
+_log = sys.stderr
+
+
 def _qt_message(mode: Any, context: Any, message: str) -> None:
-    print(f"Qt: {message}", file=sys.stderr)
+    # not sys.stderr: Anki's error handler replaces it later and reports
+    # anything written there in an error dialog (e.g. Android's harmless
+    # "makeCurrent(): no EGLSurface" when the app goes to the background)
+    _log.write(f"Qt: {message}\n")
 
 
 def install() -> None:
+    global _log
+    _log = sys.stderr  # kioku.__main__'s log file + system log
     qInstallMessageHandler(_qt_message)
-    if not os.environ.get("KIOKU_DEV"):
+    # Android: the launch intent's extra is sometimes dropped right after an
+    # install, so tools/run_device.sh also leaves Documents/.kioku-dev
+    if not os.environ.get("KIOKU_DEV") and not os.path.exists(os.path.join(DOCUMENTS, ".kioku-dev")):
+        return
+    if not getattr(platform, "dev_allowed", lambda: True)():
         return
     global _timer
     _timer = QTimer()
