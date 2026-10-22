@@ -1,5 +1,6 @@
 """Turn the qmake projects that sip-build generates for PyQt6 into static
-CMake library targets, so the bindings can be linked into the iOS app.
+CMake library targets, so the bindings can be linked into the iOS and
+Android apps.
 
 Usage: gen_pyqt_cmake.py <sip build dir> <output .cmake file>
 """

@@ -20,5 +20,5 @@ rm -rf "$ROOT/build/pyqt6-gen"
     --disabled-feature PyQt_DTLS --disabled-feature PyQt_Process \
     --disabled-feature PyQt_Vulkan --disabled-feature PyQt_XCB --disabled-feature PyQt_Wayland \
     "$@"
-"$ROOT/.venv/bin/python" "$ROOT/tools/gen_pyqt_cmake.py" "$ROOT/build/pyqt6-gen" "$ROOT/cmake/pyqt6.cmake"
+"$ROOT/.venv/bin/python" "$ROOT/../shared/tools/gen_pyqt_cmake.py" "$ROOT/build/pyqt6-gen" "$ROOT/cmake/pyqt6.cmake"
 echo "$INPUTS" > "$STAMP"

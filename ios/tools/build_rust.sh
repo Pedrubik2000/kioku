@@ -26,10 +26,10 @@ HASH=$(git -C "$ROOT/deps/anki" rev-parse --short=8 HEAD)
     || echo "$HASH" > "$ROOT/deps/anki/out/buildhash"
 
 cd "$ROOT/deps/anki"
-PYO3_CONFIG_FILE=$ROOT/tools/pyo3/abi3.cfg cargo rustc -p rsbridge --lib --release \
+PYO3_CONFIG_FILE=$ROOT/../shared/tools/pyo3/abi3.cfg cargo rustc -p rsbridge --lib --release \
     --target "$TARGET" --features rustls --crate-type staticlib
 
-export PYO3_CONFIG_FILE=$ROOT/tools/pyo3/cp314.cfg
+export PYO3_CONFIG_FILE=$ROOT/../shared/tools/pyo3/cp314.cfg
 cd "$ROOT/deps/sdist/orjson-$ORJSON_VERSION"
 cargo +nightly rustc --lib --release --target "$TARGET" --crate-type staticlib
 cd "$ROOT/deps/sdist/rpds_py-$RPDS_VERSION"
