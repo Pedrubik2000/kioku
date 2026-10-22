@@ -1,0 +1,109 @@
+# Builds the iOS variant (ios/) as an unsigned .ipa and publishes it to a
+# GitHub release.
+#
+# - Push a tag like v0.2.0: builds and attaches Kioku-iOS-0.2.0-unsigned.ipa
+#   to the release of that tag (created if needed).
+# - Run it by hand (Actions → iOS IPA → Run workflow): builds and keeps the
+#   .ipa as a workflow artifact; give a tag to publish it to that release too.
+#
+# The .ipa is unsigned: install it with a tool that signs apps with your own
+# Apple ID (AltStore, Sideloadly, …).
+name: iOS IPA
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish to (empty: build only)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Tools
+        run: |
+          brew install protobuf
+          rustup --version
+
+      - name: Cache Qt and Python
+        uses: actions/cache@v4
+        with:
+          path: |
+            ios/deps/qt
+            ios/deps/python-ios
+          key: ios-deps-${{ hashFiles('shared/versions.env') }}
+
+      - name: Cache Rust builds
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ios/deps/anki/target
+          key: ios-rust-${{ hashFiles('shared/versions.env') }}-${{ github.run_id }}
+          restore-keys: ios-rust-${{ hashFiles('shared/versions.env') }}-
+
+      - name: Version
+        id: version
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tag="$GITHUB_REF_NAME"; else tag="$INPUT_TAG"; fi
+          if [ -n "$tag" ]; then version="${tag#v}"; else version="0.0.0-${GITHUB_SHA::7}"; fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        env:
+          KIOKU_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # CFBundleVersion must be numeric
+          KIOKU_BUILD=$GITHUB_RUN_NUMBER tools/build.sh
+          mkdir -p dist
+          cp "build/Kioku-$KIOKU_VERSION-unsigned.ipa" \
+             "dist/Kioku-iOS-$KIOKU_VERSION-unsigned.ipa"
+          (cd dist && shasum -a 256 ./*.ipa > SHA256SUMS-ios.txt)
+          ls -l dist
+
+      - name: Build log
+        if: failure()
+        run: tail -200 build/xcode-dev.log || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Kioku-iOS-${{ steps.version.outputs.version }}
+          path: ios/dist/
+          compression-level: 0
+
+      - name: Publish the release
+        if: steps.version.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Kioku ${{ steps.version.outputs.version }}
+          files: |
+            ios/dist/*.ipa
+            ios/dist/SHA256SUMS-ios.txt
+          append_body: true
+          body: |
+            **iOS variant:** `Kioku-iOS-${{ steps.version.outputs.version }}-unsigned.ipa` is unsigned;
+            install it with a tool that signs apps with your Apple ID (AltStore, Sideloadly, …).
+            Needs iOS 16 or newer.
