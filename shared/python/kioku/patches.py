@@ -316,3 +316,11 @@ def _patch_rwkv() -> None:
         )
 
     rwkv._show_rwkv_state_cache_prompt = build_without_asking
+
+    # The desktop validates the state-cache store against the big engine's
+    # schema; take it from the engine the bridge was built with instead.
+    from anki import _rsbridge
+
+    schema = getattr(_rsbridge, "rwkv_state_cache_store_schema_version", None)
+    if schema is not None:
+        rwkv._RWKV_STATE_CACHE_STORE_SCHEMA_VERSION = schema()

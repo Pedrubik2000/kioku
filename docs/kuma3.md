@@ -40,6 +40,10 @@ What changed here:
     (SM55, the file kuma3 ships) is packed into `python.zip` and `__main__.py`
     points `ANKI_RWKV_MODEL_PATH` at it. The bridge is one engine per build: a
     small-engine build cannot load the big model embedded in `aqt`.
+    The patch also exposes `_rsbridge.rwkv_state_cache_store_schema_version()`:
+    each engine stamps its state-cache store with its own SQLite `user_version`
+    (big 4, small 1004) and the desktop code validates against the big one, so
+    without it a small-engine build rebuilt the state on every start.
   - `patches.py` `_patch_rwkv()`: new profiles default `rwkvStatePrecision` to
     `int4` (card states int4, note states int8, kuma3's "less memory" setting;
     Preferences can still change it), and the desktop's "RWKV state cache is not

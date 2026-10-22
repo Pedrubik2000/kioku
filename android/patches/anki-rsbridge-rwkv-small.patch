@@ -9,7 +9,7 @@ index 22dca83..a30f6da 100644
 +rwkv-small = []
  native-tls = ["anki/native-tls"]
 diff --git a/pylib/rsbridge/lib.rs b/pylib/rsbridge/lib.rs
-index 122f378..a8f44dc 100644
+index 122f378..c7e83b5 100644
 --- a/pylib/rsbridge/lib.rs
 +++ b/pylib/rsbridge/lib.rs
 @@ -4,7 +4,12 @@
@@ -25,3 +25,42 @@ index 122f378..a8f44dc 100644
  use anki::sync::http_server::SimpleServer;
  use pyo3::create_exception;
  use pyo3::exceptions::PyException;
+@@ -77,6 +82,12 @@ fn rwkv_release_free_memory(py: Python<'_>) {
+     py.detach(rwkv::release_free_memory_to_os);
+ }
+ 
++/// The state-cache store schema of the engine this bridge was built with.
++#[pyfunction]
++fn rwkv_state_cache_store_schema_version() -> i64 {
++    rwkv::state_cache_store_schema_version()
++}
++
+ #[pyfunction]
+ fn open_backend(init_msg: &Bound<'_, PyBytes>) -> PyResult<Backend> {
+     match init_backend(init_msg.as_bytes()) {
+@@ -1271,6 +1282,7 @@ fn _rsbridge(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
+     m.add_class::<RwkvInferenceState>()?;
+     m.add_wrapped(wrap_pyfunction!(rwkv_release_free_memory))
+         .unwrap();
++    m.add_wrapped(wrap_pyfunction!(rwkv_state_cache_store_schema_version)).unwrap();
+     m.add_wrapped(wrap_pyfunction!(buildhash)).unwrap();
+     m.add_wrapped(wrap_pyfunction!(open_backend)).unwrap();
+     m.add_wrapped(wrap_pyfunction!(initialize_logging)).unwrap();
+diff --git a/rslib/src/rwkv/mod.rs b/rslib/src/rwkv/mod.rs
+index 3211e92..aaa44fb 100644
+--- a/rslib/src/rwkv/mod.rs
++++ b/rslib/src/rwkv/mod.rs
+@@ -4949,6 +4949,13 @@ create table segment_state_chunks (
+     Ok(connection)
+ }
+ 
++/// The `user_version` this engine stamps on its state-cache store (the small
++/// engine uses its own, so a store is never read by the wrong engine). The
++/// desktop validates stores against it.
++pub fn state_cache_store_schema_version() -> i64 {
++    STATE_CACHE_STORE_SCHEMA_VERSION
++}
++
+ fn validate_state_cache_store(connection: &Connection, store_generation: &str) -> io::Result<()> {
+     let schema_version = connection
+         .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
