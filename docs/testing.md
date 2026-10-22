@@ -48,6 +48,10 @@ card and review counts identical to the desktop.
 | HTTPS (add-on downloads) | works after the truststore fix |
 | AnkiWeb sync | not tested yet |
 
+Popups (shared code, after the Android round): the AnkiWeb login is a card
+above the keyboard (iOS reports the keyboard in points, as assumed);
+closing it and opening another window with the keyboard up works.
+
 ### Add-ons
 
 Installed from AnkiWeb inside the app; all 15 load without errors.
@@ -110,7 +114,8 @@ counts identical to the desktop.
 | AnkiWeb sync (User 4) | works: login, full sync (download, 39,754 cards), media sync; still logged in after a force-stop and restart |
 | Popups: AnkiWeb login, rename prompt, message boxes | bordered card sized to its content; above the keyboard while typing |
 | Top bar height over 5 cold starts | 34 px each time (the retry was needed in 2 of 5) |
-| Samsung M30s (real device) | not tested yet |
+| AnkiWeb login: OK tapped with the keyboard up, error box follows | works (5 of 5); crashed before the Qt plugin patch |
+| Samsung M30s (Android 11, real device) | start-up, `sweep.sh` (all windows full screen), login card above the keyboard, OK with the keyboard up |
 
 ### Add-ons (Android)
 
