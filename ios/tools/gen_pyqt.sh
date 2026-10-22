@@ -12,7 +12,7 @@ if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$INPUTS" ] && [ -f "$ROOT/cmake/pyq
 fi
 cd "$ROOT/deps/sdist/pyqt6-$PYQT6_VERSION"
 rm -rf "$ROOT/build/pyqt6-gen"
-mkdir -p "$ROOT/build"
+mkdir -p "$ROOT/cmake" "$ROOT/build"
 "$ROOT/.venv/bin/sip-build" --no-make --confirm-license --no-tools \
     --no-designer-plugin --no-qml-plugin --no-dbus-python \
     --qmake "$ROOT/deps/qt/$QT_VERSION/ios/bin/qmake" \
