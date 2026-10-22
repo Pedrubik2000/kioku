@@ -39,7 +39,11 @@ set(RUST_LIBS
     ${DEPS}/sdist/rpds_py-${RPDS_VERSION}/target/${RUST_TARGET}/release/librpds.a
 )
 
-qt_add_executable(Kioku MACOSX_BUNDLE src/main.mm)
+# app icon (shared/tools/make_icon.py), compiled by Xcode's asset catalog tool
+set(KIOKU_ASSETS ${CMAKE_SOURCE_DIR}/res/Assets.xcassets)
+set_source_files_properties(${KIOKU_ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+
+qt_add_executable(Kioku MACOSX_BUNDLE src/main.mm ${KIOKU_ASSETS})
 target_include_directories(Kioku PRIVATE ${KIOKU_PYTHON_INCLUDE})
 target_link_libraries(Kioku PRIVATE
     pyqt6_QtCore pyqt6_QtGui pyqt6_QtWidgets pyqt6_QtNetwork pyqt6_QtSvg
@@ -65,6 +69,7 @@ set_target_properties(Kioku PROPERTIES
     XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
     XCODE_ATTRIBUTE_ENABLE_BITCODE NO
     XCODE_ATTRIBUTE_DEAD_CODE_STRIPPING YES
+    XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon
     XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@executable_path/Frameworks"
     XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${KIOKU_TEAM}"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic
