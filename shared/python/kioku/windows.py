@@ -20,12 +20,14 @@ from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QApplication,
     QAbstractScrollArea,
+    QAbstractSpinBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLayout,
     QLabel,
+    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
@@ -431,6 +433,33 @@ def _go_back() -> None:
     w.close()
 
 
+class EnterKeyFilter(QObject):
+    """Android: Qt reports a "Next" enter key for single-line fields that
+    have another widget after them, so the keyboard shows Next and moves the
+    focus instead of sending Return: Browse's search, prompts and the
+    AnkiWeb login could not be submitted from the keyboard. Report "Done",
+    which sends Return."""
+
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        if (
+            event.type() == QEvent.Type.InputMethodQuery
+            and isinstance(obj, (QLineEdit, QComboBox, QAbstractSpinBox))
+            and event.queries() & Qt.InputMethodQuery.ImEnterKeyType
+        ):
+            obj.event(event)
+            event.setValue(
+                Qt.InputMethodQuery.ImEnterKeyType, Qt.EnterKeyType.EnterKeyDone.value
+            )
+            return True
+        return False
+
+
+_enter_key_filter: EnterKeyFilter | None = None
+
+
 def install(app: QApplication) -> None:
-    global _manager
+    global _manager, _enter_key_filter
     _manager = WindowManager(app)
+    if sys.platform == "android":
+        _enter_key_filter = EnterKeyFilter(app)
+        app.installEventFilter(_enter_key_filter)
