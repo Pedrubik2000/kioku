@@ -3,6 +3,10 @@ project(Kioku LANGUAGES C CXX OBJCXX)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg)
 
+# Only the app goes into an archive (tools/testflight.sh); libraries with
+# SKIP_INSTALL=NO would make it a generic archive that cannot be exported
+set(CMAKE_XCODE_ATTRIBUTE_SKIP_INSTALL YES)
+
 # ANKI_TAG, PYQT6_SIP_VERSION, ... from ../shared/versions.env
 file(STRINGS ${CMAKE_SOURCE_DIR}/../shared/versions.env VERSION_LINES REGEX "^[A-Z_0-9]+=")
 foreach(line IN LISTS VERSION_LINES)
@@ -40,10 +44,13 @@ set(RUST_LIBS
 )
 
 # app icon (shared/tools/make_icon.py), compiled by Xcode's asset catalog tool
+# and the privacy manifest App Store Connect requires (res/PrivacyInfo.xcprivacy)
 set(KIOKU_ASSETS ${CMAKE_SOURCE_DIR}/res/Assets.xcassets)
-set_source_files_properties(${KIOKU_ASSETS} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+set(KIOKU_PRIVACY ${CMAKE_SOURCE_DIR}/res/PrivacyInfo.xcprivacy)
+set_source_files_properties(${KIOKU_ASSETS} ${KIOKU_PRIVACY}
+    PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
 
-qt_add_executable(Kioku MACOSX_BUNDLE src/main.mm ${KIOKU_ASSETS})
+qt_add_executable(Kioku MACOSX_BUNDLE src/main.mm ${KIOKU_ASSETS} ${KIOKU_PRIVACY})
 target_include_directories(Kioku PRIVATE ${KIOKU_PYTHON_INCLUDE})
 target_link_libraries(Kioku PRIVATE
     pyqt6_QtCore pyqt6_QtGui pyqt6_QtWidgets pyqt6_QtNetwork pyqt6_QtSvg
@@ -73,6 +80,10 @@ set_target_properties(Kioku PROPERTIES
     XCODE_ATTRIBUTE_LD_RUNPATH_SEARCH_PATHS "@executable_path/Frameworks"
     XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "${KIOKU_TEAM}"
     XCODE_ATTRIBUTE_CODE_SIGN_STYLE Automatic
+    # a scheme, so that tools/testflight.sh can archive
+    XCODE_GENERATE_SCHEME ON
+    XCODE_ATTRIBUTE_SKIP_INSTALL NO
+    XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
     XCODE_EMBED_FRAMEWORKS ${PYTHON_SLICE}/Python.framework
     XCODE_EMBED_FRAMEWORKS_CODE_SIGN_ON_COPY ON
     XCODE_EMBED_FRAMEWORKS_REMOVE_HEADERS_ON_COPY ON

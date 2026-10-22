@@ -59,5 +59,9 @@
 
     <key>UIStatusBarHidden</key>
     <false/>
+
+    <!-- HTTPS only (exempt): no export compliance question per upload -->
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
 </dict>
 </plist>
