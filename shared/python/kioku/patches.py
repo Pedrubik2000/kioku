@@ -45,6 +45,7 @@ def apply() -> None:
     _patch_profile_saving()
     _patch_bar_heights()
     _patch_review_menu()
+    _patch_rwkv()
 
 
 def _dark_mode() -> bool:
@@ -281,3 +282,37 @@ def _patch_audio() -> None:
         aqt.sound.av_player.players.append(platform.audio_player(taskman, media_folder))
 
     aqt.sound.setup_audio = setup_audio
+
+
+def _patch_rwkv() -> None:
+    """kuma3-anki-core's desktop RWKV, set up like kuma3 on the phone: card
+    states int4 / note states int8 unless the profile says otherwise, and the
+    state cache built on start-up without the desktop's question dialog."""
+    from aqt.profiles import ProfileManager
+
+    original_load = ProfileManager.load
+
+    def load(self, name):  # type: ignore[no-untyped-def]
+        result = original_load(self, name)
+        if self.profile is not None and "rwkvStatePrecision" not in self.profile:
+            self.profile["rwkvStatePrecision"] = "int4"
+        return result
+
+    ProfileManager.load = load
+
+    try:
+        import aqt.rwkv_scheduler as rwkv
+    except ImportError:
+        return
+
+    def build_without_asking(mw) -> None:  # type: ignore[no-untyped-def]
+        if not rwkv.configure_reviewer_backend_from_environment():
+            return
+        if rwkv._rwkv_resident_state_ready(mw):
+            return
+        rwkv._rwkv_startup_prompt_shown = True
+        mw.taskman.run_on_main(
+            lambda: rwkv.build_rwkv_state_cache_with_progress(mw, record_retrievability_cache=False)
+        )
+
+    rwkv._show_rwkv_state_cache_prompt = build_without_asking

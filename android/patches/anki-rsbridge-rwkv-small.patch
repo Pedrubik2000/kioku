@@ -1,0 +1,27 @@
+diff --git a/pylib/rsbridge/Cargo.toml b/pylib/rsbridge/Cargo.toml
+index 22dca83..a30f6da 100644
+--- a/pylib/rsbridge/Cargo.toml
++++ b/pylib/rsbridge/Cargo.toml
+@@ -20,4 +20,5 @@ pyo3.workspace = true
+ 
+ [features]
+ rustls = ["anki/rustls"]
++rwkv-small = []
+ native-tls = ["anki/native-tls"]
+diff --git a/pylib/rsbridge/lib.rs b/pylib/rsbridge/lib.rs
+index 122f378..a8f44dc 100644
+--- a/pylib/rsbridge/lib.rs
++++ b/pylib/rsbridge/lib.rs
+@@ -4,7 +4,12 @@
+ use anki::backend::init_backend;
+ use anki::backend::Backend as RustBackend;
+ use anki::log::set_global_logger;
++// rwkv-small: the bridge over JSchoreels' 331k-parameter engine instead of the
++// 2.76M one (the same source compiled twice; Kioku ships the small model).
++#[cfg(not(feature = "rwkv-small"))]
+ use anki::rwkv;
++#[cfg(feature = "rwkv-small")]
++use anki::rwkv_small as rwkv;
+ use anki::sync::http_server::SimpleServer;
+ use pyo3::create_exception;
+ use pyo3::exceptions::PyException;

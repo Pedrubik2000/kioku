@@ -31,6 +31,19 @@ What changed here:
   one above.
 - `shared/python/kioku/__main__.py`: `Documents/.kioku-debug` turns on debug
   logging (the RWKV scheduler's timings).
+- **RWKV set up like kuma3 on the phone** (so the two compare fairly):
+  - `android/patches/anki-rsbridge-rwkv-small.patch` adds a `rwkv-small` cargo
+    feature to `rsbridge` that builds the bridge over the core's small engine
+    (`anki::rwkv_small`, JSchoreels' 331k-parameter model, the same source
+    compiled for the small shape). `build_rust.sh` applies it and builds with the
+    feature unless `KIOKU_RWKV_BIG=1`; `shared/python/kioku/rwkv/model-small.bin`
+    (SM55, the file kuma3 ships) is packed into `python.zip` and `__main__.py`
+    points `ANKI_RWKV_MODEL_PATH` at it. The bridge is one engine per build: a
+    small-engine build cannot load the big model embedded in `aqt`.
+  - `patches.py` `_patch_rwkv()`: new profiles default `rwkvStatePrecision` to
+    `int4` (card states int4, note states int8, kuma3's "less memory" setting;
+    Preferences can still change it), and the desktop's "RWKV state cache is not
+    ready" question is replaced by building the state at once, as kuma3 does.
 
 Build (Linux or WSL): the usual `android/tools/build.sh` with `ANKI_WHEELS`,
 `PROTOC`, `ANDROID_NDK_ROOT` set; NDK 29 works too.

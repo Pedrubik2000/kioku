@@ -69,6 +69,11 @@ def _setup_environment() -> None:
     os.environ.setdefault("XDG_CACHE_HOME", platform.cache_dir())
     os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
     os.environ.setdefault("LANG", "en_US.UTF-8")
+    # The small RWKV model (shared/python/kioku/rwkv/), for the bridge built with
+    # the small engine (android/patches/anki-rsbridge-rwkv-small.patch)
+    small_model = os.path.join(os.path.dirname(__file__), "rwkv", "model-small.bin")
+    if os.path.exists(small_model):
+        os.environ.setdefault("ANKI_RWKV_MODEL_PATH", small_model)
 
 
 def main() -> None:

@@ -32,9 +32,17 @@ HASH=$(git -C "$ROOT/deps/anki" rev-parse --short=8 HEAD)
 [ "$(cat "$ROOT/deps/anki/out/buildhash" 2>/dev/null)" = "$HASH" ] \
     || echo "$HASH" > "$ROOT/deps/anki/out/buildhash"
 
+# rsbridge over the small RWKV engine (patches/anki-rsbridge-rwkv-small.patch):
+# Kioku ships JSchoreels' small model (shared/python/kioku/rwkv/); KIOKU_RWKV_BIG=1
+# builds the plain bridge for the big model embedded in aqt instead.
+PATCH=$ROOT/patches/anki-rsbridge-rwkv-small.patch
+git -C "$ROOT/deps/anki" apply --check --reverse "$PATCH" 2>/dev/null \
+    || git -C "$ROOT/deps/anki" apply "$PATCH"
+RSBRIDGE_FEATURES=$( [ "${KIOKU_RWKV_BIG:-}" = 1 ] && echo "" || echo ",rwkv-small" )
+
 cd "$ROOT/deps/anki"
 PYO3_CONFIG_FILE=$ROOT/../shared/tools/pyo3/abi3.cfg cargo rustc -p rsbridge --lib --release \
-    --target "$TARGET" --features rustls --crate-type staticlib
+    --target "$TARGET" --features "rustls$RSBRIDGE_FEATURES" --crate-type staticlib
 
 export PYO3_CONFIG_FILE=$ROOT/../shared/tools/pyo3/cp314.cfg
 cd "$ROOT/deps/sdist/orjson-$ORJSON_VERSION"
