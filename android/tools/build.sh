@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build Kioku for Android (arm64-v8a) from a clean checkout:
-# dependencies → Rust core → PyQt6 sources → site-packages → python.zip →
-# Qt/Gradle build. Writes build/Kioku-<version>.apk (debug-signed).
+# dependencies → patched Qt platform plugin → Rust core → PyQt6 sources →
+# site-packages → python.zip → Qt/Gradle build. Writes
+# build/Kioku-<version>.apk (debug-signed).
 # Env: ANDROID_SDK_ROOT (default ~/Library/Android/sdk), ANDROID_NDK_ROOT
 #      (default the SDK's NDK 28.2), JAVA_HOME (default Android Studio's JDK),
 #      KIOKU_VERSION, KIOKU_BUILD (default: Anki's version, 1),
@@ -24,6 +25,7 @@ HOST_DIR=$( [ "$(uname)" = Darwin ] && echo macos || echo gcc_64 )
 BUILD=$ROOT/build/cmake
 
 "$ROOT/tools/fetch_deps.sh"
+"$ROOT/tools/build_qt_plugin.sh"
 "$ROOT/tools/build_rust.sh"
 "$ROOT/tools/gen_pyqt.sh" > /dev/null
 "$ROOT/../shared/tools/prepare_site.sh" "$ROOT/.venv/bin/python" "$ROOT/deps/sdist" "$ROOT/build/site"
