@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/kioku.svg" width="112" alt="Kioku icon">
+  <img src="../shared/icon/kioku.svg" width="120" alt="Kioku icon">
 </p>
 
 <h1 align="center">Kioku</h1>
