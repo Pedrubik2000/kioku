@@ -38,7 +38,10 @@ Without them the workflow signs with a throwaway debug key and warns.
 
 Requirements: Android SDK, NDK `30.0.14904198` (see `gradle.properties`), JDK 21, Python 3.
 
+All commands run in the `termux/` folder of the repository.
+
 ```sh
+cd termux
 git submodule update --init third_party/termux-x11
 git -C third_party/termux-x11 submodule update --init --depth 1
 # macOS only, see the end of "Local changes to third-party code"
@@ -128,7 +131,7 @@ To move to a newer termux-x11:
 cd third_party/termux-x11
 git fetch upstream && git rebase upstream/master    # remotes: origin = fork, upstream = termux
 git push --force-with-lease origin kioku
-cd ../.. && git add third_party/termux-x11 && git commit -m "Update termux-x11"
+cd ../.. && git add third_party/termux-x11  # in termux/ && git commit -m "Update termux-x11"
 ```
 
 On macOS: termux-x11 applies its own submodule patches at CMake configure time with

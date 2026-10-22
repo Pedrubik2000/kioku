@@ -1,4 +1,4 @@
 [submodule "third_party/termux-x11"]
-	path = third_party/termux-x11
+	path = termux/third_party/termux-x11
 	url = https://github.com/krmanik/termux-x11.git
 	branch = kioku

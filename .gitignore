@@ -2,7 +2,7 @@ build/
 .gradle/
 local.properties
 */build/
-app/src/main/assets/bootstrap-*.zip
+termux/app/src/main/assets/bootstrap-*.zip
 .idea/
 *.iml
 __pycache__/
