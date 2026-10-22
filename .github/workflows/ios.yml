@@ -3,6 +3,8 @@
 #
 # - Push a tag like v0.2.0: builds and attaches Kioku-iOS-0.2.0-unsigned.ipa
 #   to the release of that tag (created if needed).
+# - Push to main with changes in ios/ or shared/: builds only, the result is
+#   a workflow artifact.
 # - Run it by hand (Actions → iOS IPA → Run workflow): builds and keeps the
 #   .ipa as a workflow artifact; give a tag to publish it to that release too.
 #
@@ -16,6 +18,9 @@ name: iOS IPA
 on:
   push:
     tags: ["v*"]
+    # build only (no release) when the ios code changes on main
+    branches: [main]
+    paths: ["ios/**", "shared/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
     inputs:
       tag:
