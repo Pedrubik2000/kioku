@@ -20,7 +20,10 @@ copy() {
 }
 rm -f "$LOGDIR/cmd.out"
 copy from Documents/.kioku-cmd.out "$LOGDIR/old.out"   # clear stale output marker
-copy to "$LOGDIR/cmd.py" Documents/.kioku-cmd.py || { echo "copy failed"; exit 1; }
+# devicectl reads the file back after copying it and reports a failure when
+# the app has already picked it up (and deleted it), so a failure here is
+# not final: wait for the output either way
+copy to "$LOGDIR/cmd.py" Documents/.kioku-cmd.py || echo "(copy reported a failure; waiting for output anyway)" >&2
 for _ in $(seq 1 20); do
     sleep 1
     copy from Documents/.kioku-cmd.out "$LOGDIR/cmd.out"
