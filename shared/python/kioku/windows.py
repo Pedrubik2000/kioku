@@ -4,20 +4,25 @@ iOS has no window manager: a QDialog or the browser's QMainWindow appears
 at its desktop size with no title bar, so it can be wider than the screen
 and has no way to close it. Every top-level window except the main window
 and popups is therefore made to fill the screen and given a title bar with a
-Close button. Message boxes keep their own buttons and are just fitted to
-the screen and centred.
+Close button. Message boxes and small dialogs (a login, a text prompt) keep
+their own buttons and are shown as a bordered card in the middle of the
+screen, as tall as their content.
 """
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from PyQt6 import sip
-from PyQt6.QtCore import QEvent, QMargins, QObject, QRect, Qt, QTimer
+from PyQt6.QtCore import QEvent, QMargins, QObject, QRect, QRectF, QSize, Qt, QTimer
 from PyQt6.QtGui import QGuiApplication
 from PyQt6.QtWidgets import (
     QApplication,
+    QAbstractScrollArea,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
     QLayout,
     QLabel,
@@ -30,6 +35,9 @@ from PyQt6.QtWidgets import (
 
 BAR_HEIGHT = 44
 BAR_PROPERTY = "kiokuTitleBar"
+BORDER_PROPERTY = "kiokuPopupBorder"
+# gap between a card-style window and the screen edges
+CARD_MARGIN = 8
 WINDOW_TYPES = (Qt.WindowType.Window, Qt.WindowType.Dialog, Qt.WindowType.Sheet)
 
 
@@ -94,6 +102,29 @@ class TitleBar(QWidget):
         p.drawLine(0, self.height() - 1, self.width(), self.height() - 1)
 
 
+class PopupBorder(QWidget):
+    """A thin frame around a card-style window, which has no window frame of
+    its own and would blend into the screen behind it."""
+
+    def __init__(self, window: QWidget) -> None:
+        super().__init__(window)
+        self.setObjectName(BORDER_PROPERTY)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.place()
+        self.show()
+
+    def place(self) -> None:
+        self.setGeometry(self.parentWidget().rect())
+        self.raise_()
+
+    def paintEvent(self, evt: Any) -> None:
+        from PyQt6.QtGui import QPainter
+
+        p = QPainter(self)
+        p.setPen(self.palette().mid().color())
+        p.drawRect(self.rect().adjusted(0, 0, -1, -1))
+
+
 def _back_label() -> str:
     try:
         from aqt.utils import tr
@@ -135,6 +166,13 @@ def _fit_children(w: QWidget, avail: QRect) -> None:
             )
             child.setMinimumContentsLength(8)
         elif (
+            isinstance(child, QDialogButtonBox)
+            and child.orientation() == Qt.Orientation.Horizontal
+            and child.sizeHint().width() > narrow - 32
+        ):
+            # a row of long labels ("Download from AnkiWeb") would be clipped
+            child.setOrientation(Qt.Orientation.Vertical)
+        elif (
             isinstance(child, QLabel)
             and not child.wordWrap()
             and child.pixmap().isNull()
@@ -147,9 +185,64 @@ def _fit_children(w: QWidget, avail: QRect) -> None:
         layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
 
 
+def _is_small_dialog(w: QWidget, avail: QRect) -> bool:
+    """A dialog with its own buttons and little content (the AnkiWeb login,
+    a rename prompt). Filling the screen spreads it out: its text at the
+    top, its buttons at the bottom. Lists, text areas and web pages make
+    use of the space, so dialogs with those still fill the screen."""
+    if sip.isdeleted(w) or not isinstance(w, QDialog) or w.findChild(QDialogButtonBox) is None:
+        return False
+    for child in w.findChildren(QWidget):
+        if isinstance(child, QAbstractScrollArea) or any(
+            c.__name__ == "QWebEngineView" for c in type(child).__mro__
+        ):
+            return False
+    return _card_size(w, avail).height() <= avail.height() * 0.7
+
+
+def _card_size(w: QWidget, avail: QRect) -> QSize:
+    width = min(avail.width() - 2 * CARD_MARGIN, max(w.sizeHint().width(), 480))
+    layout = w.layout()
+    height = -1
+    if layout is not None and layout.hasHeightForWidth():
+        height = layout.totalHeightForWidth(width)
+    if height <= 0:
+        height = w.sizeHint().height()
+    return QSize(width, min(height, avail.height() - 2 * CARD_MARGIN))
+
+
 def _available() -> QRect:
     screen = QGuiApplication.primaryScreen()
     return screen.availableGeometry() if screen is not None else QRect(0, 0, 400, 800)
+
+
+def _above_keyboard(avail: QRect) -> QRect:
+    """The part of the screen the on-screen keyboard leaves free."""
+    im = QGuiApplication.inputMethod()
+    kbd = im.keyboardRectangle() if im is not None and im.isVisible() else None
+    if kbd is None or kbd.isEmpty():
+        return avail
+    screen = QGuiApplication.primaryScreen()
+    if sys.platform == "android" and screen is not None:
+        # Android reports it in device pixels
+        ratio = screen.devicePixelRatio()
+        kbd = QRectF(kbd.topLeft() / ratio, kbd.size() / ratio)
+    top = int(kbd.top())
+    # a floating keyboard covers only part of the width; leave cards alone
+    if kbd.width() >= avail.width() * 0.9 and avail.top() < top < avail.bottom():
+        return QRect(avail.x(), avail.y(), avail.width(), top - avail.y())
+    return avail
+
+
+def _center(w: QWidget, size: QSize, avail: QRect) -> None:
+    area = _above_keyboard(avail)
+    y = area.y() + (area.height() - size.height()) // 2
+    w.setGeometry(
+        avail.x() + (avail.width() - size.width()) // 2,
+        max(avail.y() + CARD_MARGIN, y) if size.height() <= area.height() else area.bottom() - size.height(),
+        size.width(),
+        size.height(),
+    )
 
 
 class WindowManager(QObject):
@@ -159,6 +252,11 @@ class WindowManager(QObject):
         screen = QGuiApplication.primaryScreen()
         if screen is not None:
             screen.availableGeometryChanged.connect(self._refit_all)
+        im = QGuiApplication.inputMethod()
+        if im is not None:
+            # keep cards with a text field (the AnkiWeb login) above it
+            im.keyboardRectangleChanged.connect(self._recenter_cards)
+            im.visibleChanged.connect(self._recenter_cards)
 
     def eventFilter(self, obj: QObject | None, evt: QEvent | None) -> bool:
         if evt is None or not isinstance(obj, QWidget):
@@ -179,6 +277,9 @@ class WindowManager(QObject):
         elif kind == QEvent.Type.Resize and obj.isWindow():
             if self._bar(obj) is not None:
                 self._layout(obj)
+            border = self._border(obj)
+            if border is not None:
+                border.place()
         elif kind == QEvent.Type.WindowTitleChange:
             bar = self._bar(obj)
             if bar is not None:
@@ -197,13 +298,23 @@ class WindowManager(QObject):
         bar = w.findChild(TitleBar, BAR_PROPERTY, Qt.FindChildOption.FindDirectChildrenOnly)
         return bar
 
+    @staticmethod
+    def _border(w: QWidget) -> PopupBorder | None:
+        return w.findChild(PopupBorder, BORDER_PROPERTY, Qt.FindChildOption.FindDirectChildrenOnly)
+
     def _adopt(self, w: QWidget) -> None:
         if sip.isdeleted(w) or not w.isVisible():
             return
         avail = _available()
         _fit_children(w, avail)
         if isinstance(w, QMessageBox):
-            self._fit_centered(w)
+            self._fit_message_box(w, avail)
+            self._add_border(w)
+            return
+        if self._bar(w) is None and _is_small_dialog(w, avail):
+            w.setMinimumSize(0, 0)
+            _center(w, _card_size(w, avail), avail)
+            self._add_border(w)
             return
         if self._bar(w) is None:
             # we add the safe area ourselves (Qt would merge it with our
@@ -241,17 +352,29 @@ class WindowManager(QObject):
             w.setContentsMargins(*margins)
         bar.place(safe.top())
 
+    def _add_border(self, w: QWidget) -> None:
+        if self._border(w) is None:
+            PopupBorder(w)
+
     @staticmethod
-    def _fit_centered(w: QWidget) -> None:
+    def _fit_message_box(box: QMessageBox, avail: QRect) -> None:
+        """QMessageBox sizes itself when shown and wraps its text at half
+        the screen's width (a desktop rule), so long texts (the sync
+        conflict) ran off the bottom. Widen the text label to the screen;
+        the box then computes the height the wrapped text needs."""
+        label = box.findChild(QLabel, "qt_msgbox_label")
+        if label is not None:
+            extra = box.width() - label.width()
+            label.setMinimumWidth(max(0, avail.width() - 2 * CARD_MARGIN - extra))
+            box.setText(box.text())  # makes QMessageBox recompute its size
+        height = min(box.height(), avail.height() - 2 * CARD_MARGIN)
+        _center(box, QSize(box.width(), height), avail)
+
+    def _recenter_cards(self) -> None:
         avail = _available()
-        width = min(w.width(), avail.width() - 16)
-        height = min(w.height(), avail.height() - 16)
-        w.setMinimumSize(0, 0)
-        w.resize(width, height)
-        w.move(
-            avail.x() + (avail.width() - width) // 2,
-            avail.y() + (avail.height() - height) // 2,
-        )
+        for w in QApplication.topLevelWidgets():
+            if w.isVisible() and self._border(w) is not None:
+                _center(w, w.size(), avail)
 
     def _refit_all(self) -> None:
         for w in QApplication.topLevelWidgets():
