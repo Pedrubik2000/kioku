@@ -7,7 +7,10 @@
 #   .ipa as a workflow artifact; give a tag to publish it to that release too.
 #
 # The .ipa is unsigned: install it with a tool that signs apps with your own
-# Apple ID (AltStore, Sideloadly, …).
+# Apple ID (AltStore, Sideloadly, …). Releases also carry altstore.json, an
+# AltStore source: add
+#   https://github.com/<owner>/<repo>/releases/latest/download/altstore.json
+# in AltStore (Sources → +) to install Kioku and get its updates there.
 name: iOS IPA
 
 on:
@@ -87,6 +90,21 @@ jobs:
         if: failure()
         run: tail -200 build/xcode-dev.log || true
 
+      - name: AltStore source
+        if: steps.version.outputs.tag != ''
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          ipa="dist/Kioku-iOS-$VERSION-unsigned.ipa"
+          python3 ../shared/tools/altstore_source.py \
+            --version "$VERSION" --build "$GITHUB_RUN_NUMBER" \
+            --size "$(stat -f %z "$ipa")" --repo "$REPO" \
+            --download "https://github.com/$REPO/releases/download/$TAG/$(basename "$ipa")" \
+            > dist/altstore.json
+          cat dist/altstore.json
+
       - uses: actions/upload-artifact@v4
         with:
           name: Kioku-iOS-${{ steps.version.outputs.version }}
@@ -102,8 +120,11 @@ jobs:
           files: |
             ios/dist/*.ipa
             ios/dist/SHA256SUMS-ios.txt
+            ios/dist/altstore.json
           append_body: true
           body: |
-            **iOS variant:** `Kioku-iOS-${{ steps.version.outputs.version }}-unsigned.ipa` is unsigned;
-            install it with a tool that signs apps with your Apple ID (AltStore, Sideloadly, …).
-            Needs iOS 16 or newer.
+            **iOS variant:** in AltStore, add the source
+            `https://github.com/${{ github.repository }}/releases/latest/download/altstore.json` (Sources → +)
+            and install Kioku from it; updates then show up in AltStore. Or install
+            `Kioku-iOS-${{ steps.version.outputs.version }}-unsigned.ipa` with any tool that signs apps with your Apple ID.
+            Needs iOS 17 or newer.
