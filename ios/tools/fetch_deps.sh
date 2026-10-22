@@ -33,8 +33,7 @@ sed -i '' 's|^HostPrefix=.*|HostPrefix=../../macos|; s|^HostData=.*|HostData=.|'
     "$QT/ios/bin/target_qt.conf"
 
 if [ ! -d python-ios/Python.xcframework ]; then
-    tag=$(curl -fsSL https://api.github.com/repos/beeware/Python-Apple-support/releases \
-        | python3 -c "import json,sys; print(next(r['tag_name'] for r in json.load(sys.stdin) if r['tag_name'].startswith('$PYTHON_VERSION-')))")
+    tag=$PYTHON_APPLE_SUPPORT_TAG
     curl -fsSL -o python-ios.tar.gz \
         "https://github.com/beeware/Python-Apple-support/releases/download/$tag/Python-$PYTHON_VERSION-iOS-support.${tag#*-}.tar.gz"
     mkdir -p python-ios && tar xzf python-ios.tar.gz -C python-ios && rm python-ios.tar.gz
