@@ -13,9 +13,10 @@ mkdir -p "$DEPS/sdist"
 cd "$DEPS"
 
 if [ "$(uname)" = Darwin ]; then
-    HOST_OS=mac; HOST_ARCH=clang_64; HOST_DIR=macos
+    HOST_OS=mac; HOST_ARCH=clang_64; HOST_DIR=macos; HOST_ICU=
 else
-    HOST_OS=linux; HOST_ARCH=linux_gcc_64; HOST_DIR=gcc_64
+    # Linux Qt links against its own ICU 73, a separate archive
+    HOST_OS=linux; HOST_ARCH=linux_gcc_64; HOST_DIR=gcc_64; HOST_ICU=icu
 fi
 
 if [ ! -x "$ROOT/.venv/bin/sip-build" ]; then
@@ -27,7 +28,7 @@ fi
 QT=$DEPS/qt/$QT_VERSION
 if [ ! -d "$QT/$HOST_DIR/bin" ]; then
     uvx --from aqtinstall aqt install-qt "$HOST_OS" desktop "$QT_VERSION" "$HOST_ARCH" \
-        --archives qtbase qtsvg qttools -O qt -b "$QT_MIRROR"
+        --archives qtbase qtsvg qttools $HOST_ICU -O qt -b "$QT_MIRROR"
 fi
 if [ ! -d "$QT/android_arm64_v8a/lib" ]; then
     uvx --from aqtinstall aqt install-qt all_os android "$QT_VERSION" android_arm64_v8a \
