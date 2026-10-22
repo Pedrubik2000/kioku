@@ -1,0 +1,151 @@
+# Checks daily for a new Anki release and opens a pull request that moves all
+# three variants to it, then starts their builds on the PR branch.
+#
+# - iOS and native Android: shared/versions.env (ANKI_TAG, ANKI_PY_VERSION)
+#   and the pinned dependencies in shared/requirements.txt.
+# - Termux: the anki .deb in termux/local-debs/, downloaded from the
+#   krmanik/termux-packages release of that version when it exists (otherwise
+#   the PR says so), and the default versionName.
+#
+# Waits until Anki's wheels for the release are on PyPI. Builds started from
+# here only produce workflow artifacts (no release).
+name: Anki update
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Anki release tag (empty: latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Latest Anki release
+        id: anki
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          tag=${INPUT_TAG:-$(gh api repos/ankitects/anki/releases/latest --jq .tag_name)}
+          current=$(sed -n 's/^ANKI_TAG=//p' shared/versions.env)
+          # PyPI normalises 26.08.1 to 26.8.1
+          py=$(uvx --from packaging python -c "from packaging.version import Version; print(Version('$tag'))")
+          echo "Anki: latest $tag (PyPI $py), current $current"
+          if [ "$tag" = "$current" ]; then
+            echo "Up to date."; echo "update=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! curl -fsS "https://pypi.org/pypi/aqt/$py/json" > aqt.json; then
+            echo "aqt $py is not on PyPI yet; trying again tomorrow."
+            echo "update=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          {
+            echo "update=true"
+            echo "tag=$tag"
+            echo "py=$py"
+            echo "current=$current"
+            echo "branch=anki-update/$tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update iOS and Android
+        if: steps.anki.outputs.update == 'true'
+        env:
+          TAG: ${{ steps.anki.outputs.tag }}
+          PY: ${{ steps.anki.outputs.py }}
+          CURRENT: ${{ steps.anki.outputs.current }}
+        run: |
+          old_py=$(sed -n 's/^ANKI_PY_VERSION=//p' shared/versions.env)
+          sed -i "s/^ANKI_TAG=.*/ANKI_TAG=$TAG/; s/^ANKI_PY_VERSION=.*/ANKI_PY_VERSION=$PY/" shared/versions.env
+          sed -i "1s/(aqt\/anki $old_py)/(aqt\/anki $PY)/" shared/requirements.in
+          uv pip compile -q -p 3.14 shared/requirements.in -o shared/requirements.txt
+          # aqt's and anki's declared dependencies, for the PR description
+          {
+            echo "### Dependencies declared by aqt/anki $PY"
+            echo '```'
+            for pkg in aqt anki; do
+              curl -fsS "https://pypi.org/pypi/$pkg/$PY/json" \
+                | python3 -c "import json,sys; print('\n'.join(json.load(sys.stdin)['info']['requires_dist'] or []))"
+            done | grep -v 'extra ==' | sort -u
+            echo '```'
+          } > "$RUNNER_TEMP/deps.md"
+
+      - name: Update Termux
+        if: steps.anki.outputs.update == 'true'
+        id: termux
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.anki.outputs.tag }}
+          CURRENT: ${{ steps.anki.outputs.current }}
+        run: |
+          sed -i "s/anki$CURRENT'/anki$TAG'/" termux/app/build.gradle
+          deb="anki_${TAG}_aarch64.deb"
+          if gh release download -R krmanik/termux-packages --pattern "$deb" -D "$RUNNER_TEMP" 2>/dev/null; then
+            git rm -q "termux/local-debs/anki_${CURRENT}_aarch64.deb" || true
+            cp "$RUNNER_TEMP/$deb" termux/local-debs/
+            echo "deb=found" >> "$GITHUB_OUTPUT"
+          else
+            echo "deb=missing" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pull request
+        if: steps.anki.outputs.update == 'true'
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ steps.anki.outputs.branch }}
+          commit-message: "Update Anki to ${{ steps.anki.outputs.tag }}"
+          title: "Update Anki to ${{ steps.anki.outputs.tag }}"
+          body-path: ${{ runner.temp }}/deps.md
+          labels: anki-update
+
+      - name: Pull request description
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.anki.outputs.tag }}
+          CURRENT: ${{ steps.anki.outputs.current }}
+          DEB: ${{ steps.termux.outputs.deb }}
+          NUMBER: ${{ steps.pr.outputs.pull-request-number }}
+        run: |
+          if [ "$DEB" = found ]; then
+            termux="- [x] Termux: \`anki_${TAG}_aarch64.deb\` from krmanik/termux-packages"
+          else
+            termux="- [ ] Termux: build \`anki_${TAG}_aarch64.deb\` (krmanik/termux-packages) and add it to termux/local-debs/"
+          fi
+          {
+            echo "Anki [$TAG](https://github.com/ankitects/anki/releases/tag/$TAG) is out (was $CURRENT)."
+            echo
+            echo "- [x] iOS and native Android: \`shared/versions.env\`, \`shared/requirements.txt\`"
+            echo "$termux"
+            echo "- [ ] Builds: Android APK, iOS IPA and Termux APK were started on this branch (Actions tab)"
+            echo "- [ ] Compare the dependencies below with \`shared/requirements.in\` and \`termux/tools/python-requirements.in\`"
+            echo "- [ ] Run the tests in docs/testing.md on a phone"
+            echo
+            cat "$RUNNER_TEMP/deps.md"
+          } > "$RUNNER_TEMP/body.md"
+          gh pr edit "$NUMBER" --body-file "$RUNNER_TEMP/body.md"
+
+      - name: Build all variants on the branch
+        if: steps.pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.anki.outputs.branch }}
+        run: |
+          # pull requests opened with GITHUB_TOKEN start no workflows by
+          # themselves; dispatching them explicitly is allowed
+          for workflow in android.yml ios.yml termux.yml; do
+            gh workflow run "$workflow" --ref "$BRANCH"
+          done
