@@ -1,0 +1,1 @@
+First TestFlight build: Anki 26.08.1 desktop on iPhone and iPad. Please try reviewing, Browse, the editor, statistics, deck options, AnkiWeb sync and your add-ons, and report anything that breaks.
