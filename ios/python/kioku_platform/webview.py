@@ -1,0 +1,400 @@
+"""The iOS web view backend: WKWebView, driven through rubicon-objc.
+
+One WebView wraps one WKWebView plus its configuration. Everything Qt-shaped
+(QUrl, signals, QWebEngine* semantics) lives in kioku.webengine; this module
+only speaks Objective-C and plain Python values.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import weakref
+from ctypes import c_bool, c_long, c_void_p
+from typing import Any, Callable
+
+from rubicon.objc import (
+    Block,
+    CGPoint,
+    CGRect,
+    CGSize,
+    NSObject,
+    ObjCBlock,
+    ObjCClass,
+    ObjCInstance,
+    SEL,
+    at,
+    objc_method,
+    py_from_ns,
+)
+from rubicon.objc.api import ObjCBoundMethod
+from rubicon.objc.runtime import load_library, objc_id
+
+load_library("WebKit")
+load_library("UIKit")
+
+logger = logging.getLogger("kioku.wk")
+
+WKWebView = ObjCClass("WKWebView")
+WKWebViewConfiguration = ObjCClass("WKWebViewConfiguration")
+WKUserScript = ObjCClass("WKUserScript")
+WKContentWorld = ObjCClass("WKContentWorld")
+NSURL = ObjCClass("NSURL")
+NSMutableURLRequest = ObjCClass("NSMutableURLRequest")
+UIColor = ObjCClass("UIColor")
+NSData = ObjCClass("NSData")
+
+# WKUserScriptInjectionTime; the same values as kioku.webscripts
+AT_DOCUMENT_START = 0
+AT_DOCUMENT_END = 1
+POLICY_CANCEL = 0
+POLICY_ALLOW = 1
+FLEXIBLE_SIZE = 2 | 16  # UIViewAutoresizingFlexibleWidth | FlexibleHeight
+
+CHANNEL_HANDLER = "kiokuChannel"
+CONSOLE_HANDLER = "kiokuConsole"
+SELECTION_HANDLER = "kiokuSelection"
+
+def prop(obj: Any, name: str) -> Any:
+    """Read an Objective-C property. Rubicon only treats a name as a property
+    when the runtime declares one, so plain getters come back as methods."""
+    value = getattr(obj, name)
+    if isinstance(value, ObjCBoundMethod):
+        value = value()
+    return value
+
+
+def same(a: Any, b: Any) -> bool:
+    return a is not None and b is not None and a.ptr.value == b.ptr.value
+
+
+def block(ptr: int | None, *argtypes: Any) -> ObjCBlock:
+    """Wrap a block WebKit passed us; its blocks carry no type signature."""
+    return ObjCBlock(objc_id(ptr), None, *argtypes)
+
+
+# WKWebView instances keyed by pointer, so the shared ObjC delegates can find
+# the Python object that owns the view.
+_views: "weakref.WeakValueDictionary[int, WebView]" = weakref.WeakValueDictionary()
+
+
+def _owner(webview: Any) -> WebView | None:
+    if webview is None:
+        return None
+    return _views.get(webview.ptr.value)
+
+
+def _view_for_controller(controller: Any) -> WebView | None:
+    for view in list(_views.values()):
+        if same(view.controller, controller):
+            return view
+    return None
+
+
+def _url_string(request: Any) -> str:
+    url = prop(request, "URL")
+    return str(prop(url, "absoluteString")) if url is not None else ""
+
+
+class KiokuScriptHandler(NSObject):
+    @objc_method
+    def userContentController_didReceiveScriptMessage_(
+        self, controller, message
+    ) -> None:
+        view = _view_for_controller(controller)
+        if view is None:
+            return
+        name = str(prop(message, "name"))
+        body = prop(message, "body")
+        text = str(body) if body is not None else ""
+        try:
+            if name == CONSOLE_HANDLER:
+                view.on_console(json.loads(text))
+            elif name == SELECTION_HANDLER:
+                view.on_selection(text)
+        except Exception:
+            logger.exception("script message %s", name)
+
+    @objc_method
+    def userContentController_didReceiveScriptMessage_replyHandler_(
+        self, controller, message, reply: c_void_p
+    ) -> None:
+        # void (^)(id reply, NSString *errorMessage)
+        reply_block = block(reply, objc_id, objc_id)
+        view = _view_for_controller(controller)
+        try:
+            if view is None:
+                raise RuntimeError("no view for message")
+            call = json.loads(str(prop(message, "body")))
+            result = view.on_channel_call(
+                call["obj"], call["method"], call.get("args", [])
+            )
+            reply_block(at(json.dumps(result)), None)
+        except Exception as e:
+            logger.exception("channel call failed")
+            reply_block(None, at(str(e)))
+
+
+class KiokuNavigationDelegate(NSObject):
+    @objc_method
+    def webView_decidePolicyForNavigationAction_decisionHandler_(
+        self, webview, action, handler: c_void_p
+    ) -> None:
+        # void (^)(WKNavigationActionPolicy)
+        decide = block(handler, c_long)
+        view = _owner(webview)
+        allow = True
+        try:
+            if view is not None:
+                url = _url_string(prop(action, "request"))
+                frame = prop(action, "targetFrame")
+                main_frame = frame is None or bool(prop(frame, "isMainFrame"))
+                nav_type = int(prop(action, "navigationType"))
+                allow = view.on_navigation(url, nav_type, main_frame)
+        except Exception:
+            logger.exception("navigation policy")
+        decide(POLICY_ALLOW if allow else POLICY_CANCEL)
+
+    @objc_method
+    def webView_didStartProvisionalNavigation_(self, webview, navigation) -> None:
+        view = _owner(webview)
+        if view is not None:
+            view.on_load_started()
+
+    @objc_method
+    def webView_didFinishNavigation_(self, webview, navigation) -> None:
+        view = _owner(webview)
+        if view is not None:
+            view.on_load_finished(True)
+
+    @objc_method
+    def webView_didFailNavigation_withError_(self, webview, navigation, error) -> None:
+        view = _owner(webview)
+        if view is not None:
+            logger.warning("navigation failed: %s", prop(error, "localizedDescription"))
+            view.on_load_finished(False)
+
+    @objc_method
+    def webView_didFailProvisionalNavigation_withError_(
+        self, webview, navigation, error
+    ) -> None:
+        view = _owner(webview)
+        if view is not None:
+            logger.warning(
+                "provisional navigation failed: %s", prop(error, "localizedDescription")
+            )
+            view.on_load_finished(False)
+
+    @objc_method
+    def webViewWebContentProcessDidTerminate_(self, webview) -> None:
+        logger.warning("web content process terminated; reloading")
+        webview.reload()
+
+
+class KiokuUIDelegate(NSObject):
+    @objc_method
+    def webView_runJavaScriptAlertPanelWithMessage_initiatedByFrame_completionHandler_(
+        self, webview, message, frame, handler: c_void_p
+    ) -> None:
+        block(handler)()
+        view = _owner(webview)
+        if view is not None:
+            view.on_alert(str(message))
+
+    @objc_method
+    def webView_runJavaScriptConfirmPanelWithMessage_initiatedByFrame_completionHandler_(
+        self, webview, message, frame, handler: c_void_p
+    ) -> None:
+        done = block(handler, c_bool)
+        view = _owner(webview)
+        ok = False
+        try:
+            if view is not None:
+                ok = bool(view.on_confirm(str(message)))
+        finally:
+            done(ok)
+
+    @objc_method
+    def webView_createWebViewWithConfiguration_forNavigationAction_windowFeatures_(
+        self, webview, configuration, action, features
+    ) -> objc_id:
+        # target=_blank: let the page decide whether to open it externally
+        view = _owner(webview)
+        if view is not None:
+            view.on_navigation(_url_string(prop(action, "request")), 0, True)
+        return None
+
+
+_script_handler = KiokuScriptHandler.alloc().init()
+_navigation_delegate = KiokuNavigationDelegate.alloc().init()
+_ui_delegate = KiokuUIDelegate.alloc().init()
+
+
+class WebView:
+    """Owns one WKWebView. Callbacks are overridden by kioku.webengine."""
+
+    # defines window.__kiokuNative for kioku.webscripts.PRELUDE
+    BRIDGE = (
+        "window.__kiokuNative = {"
+        "send: function (name, text) {"
+        " var h = {console: 'kiokuConsole', selection: 'kiokuSelection'}[name];"
+        " window.webkit.messageHandlers[h].postMessage(text); },"
+        "call: function (text) {"
+        " return window.webkit.messageHandlers.kiokuChannel.postMessage(text); }"
+        "};"
+    )
+
+    @staticmethod
+    def prepare_host(widget: Any) -> None:
+        """A native child window gives the widget a UIView for the WKWebView."""
+        from PyQt6.QtCore import Qt
+
+        widget.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+        widget.setAttribute(Qt.WidgetAttribute.WA_DontCreateNativeAncestors, True)
+
+    def __init__(self) -> None:
+        config = WKWebViewConfiguration.alloc().init()
+        config.setAllowsInlineMediaPlayback_(True)
+        config.setMediaTypesRequiringUserActionForPlayback_(0)
+        self.controller = prop(config, "userContentController")
+        page_world = prop(WKContentWorld, "pageWorld")
+        self.controller.addScriptMessageHandlerWithReply_contentWorld_name_(
+            _script_handler, page_world, at(CHANNEL_HANDLER)
+        )
+        self.controller.addScriptMessageHandler_name_(
+            _script_handler, at(CONSOLE_HANDLER)
+        )
+        self.controller.addScriptMessageHandler_name_(
+            _script_handler, at(SELECTION_HANDLER)
+        )
+        webview = WKWebView.alloc().initWithFrame_configuration_(
+            CGRect(CGPoint(0, 0), CGSize(100, 100)), config
+        )
+        webview.setNavigationDelegate_(_navigation_delegate)
+        webview.setUIDelegate_(_ui_delegate)
+        webview.setAutoresizingMask_(FLEXIBLE_SIZE)
+        webview.setAllowsLinkPreview_(False)
+        if webview.respondsToSelector_(SEL("setInspectable:")):
+            webview.setInspectable_(True)  # Safari Web Inspector
+        self.webview = webview
+        self._pending: set[Any] = set()
+        _views[webview.ptr.value] = self
+
+    # Scripts ---------------------------------------------------------------
+
+    def set_user_scripts(self, scripts: list[tuple[str, int, bool]]) -> None:
+        """scripts: (source, injection time, main frame only)"""
+        self.controller.removeAllUserScripts()
+        for source, when, main_only in scripts:
+            script = WKUserScript.alloc().initWithSource_injectionTime_forMainFrameOnly_(
+                at(source), when, main_only
+            )
+            self.controller.addUserScript_(script)
+
+    # Loading ---------------------------------------------------------------
+
+    def load_url(self, url: str, headers: dict[str, str] | None = None) -> None:
+        nsurl = NSURL.URLWithString_(at(url))
+        if nsurl is None:
+            logger.warning("bad url %s", url)
+            return
+        request = NSMutableURLRequest.requestWithURL_(nsurl)
+        for key, value in (headers or {}).items():
+            request.setValue_forHTTPHeaderField_(at(value), at(key))
+        self.webview.loadRequest_(request)
+
+    def load_html(self, html: str, base_url: str | None) -> None:
+        base = NSURL.URLWithString_(at(base_url)) if base_url else None
+        self.webview.loadHTMLString_baseURL_(at(html), base)
+
+    def reload(self) -> None:
+        self.webview.reload()
+
+    def stop(self) -> None:
+        self.webview.stopLoading()
+
+    def back(self) -> None:
+        self.webview.goBack()
+
+    def forward(self) -> None:
+        self.webview.goForward()
+
+    def url(self) -> str:
+        u = prop(self.webview, "URL")
+        return str(prop(u, "absoluteString")) if u is not None else ""
+
+    def title(self) -> str:
+        t = prop(self.webview, "title")
+        return str(t) if t is not None else ""
+
+    # JavaScript --------------------------------------------------------------
+
+    def evaluate(self, js: str, callback: Callable[[Any], None] | None) -> None:
+        holder: list[Any] = []
+
+        def done(result: objc_id, error: objc_id) -> None:
+            self._pending.discard(holder[0])
+            value = None
+            if result:
+                try:
+                    value = py_from_ns(ObjCInstance(result))
+                except Exception:
+                    value = None
+            if callback is not None:
+                try:
+                    callback(value)
+                except Exception:
+                    logger.exception("runJavaScript callback")
+
+        blk = Block(done, None, objc_id, objc_id)
+        holder.append(blk)
+        self._pending.add(blk)
+        self.webview.evaluateJavaScript_completionHandler_(at(js), blk)
+
+    # Appearance --------------------------------------------------------------
+
+    def set_background(self, r: float, g: float, b: float, a: float) -> None:
+        color = UIColor.colorWithRed_green_blue_alpha_(r, g, b, a)
+        self.webview.setOpaque_(a >= 1.0)
+        self.webview.setBackgroundColor_(color)
+        prop(self.webview, "scrollView").setBackgroundColor_(color)
+        if self.webview.respondsToSelector_(SEL("setUnderPageBackgroundColor:")):
+            self.webview.setUnderPageBackgroundColor_(color)
+
+    def set_zoom(self, factor: float) -> None:
+        if self.webview.respondsToSelector_(SEL("setPageZoom:")):
+            self.webview.setPageZoom_(factor)
+
+    # Hosting ---------------------------------------------------------------
+
+    def attach(self, widget: Any) -> None:
+        """Put the web view into the widget's UIView (its winId)."""
+        host = ObjCInstance(c_void_p(int(widget.winId())))
+        current = prop(self.webview, "superview")
+        if current is not None:
+            if same(current, host):
+                return
+            self.webview.removeFromSuperview()
+        self.webview.setFrame_(prop(host, "bounds"))
+        host.addSubview_(self.webview)
+
+    def detach(self) -> None:
+        self.webview.removeFromSuperview()
+
+    def close(self) -> None:
+        self.detach()
+        _views.pop(self.webview.ptr.value, None)
+        self.controller.removeAllScriptMessageHandlers()
+
+    # Callbacks, overridden by the owner -------------------------------------
+
+    def on_console(self, entry: dict) -> None: ...
+    def on_selection(self, text: str) -> None: ...
+    def on_channel_call(self, obj: str, method: str, args: list) -> Any: ...
+    def on_navigation(self, url: str, nav_type: int, main_frame: bool) -> bool:
+        return True
+    def on_load_started(self) -> None: ...
+    def on_load_finished(self, ok: bool) -> None: ...
+    def on_alert(self, text: str) -> None: ...
+    def on_confirm(self, text: str) -> bool:
+        return False

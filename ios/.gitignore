@@ -1,0 +1,4 @@
+deps/
+build/
+.venv/
+cmake/pyqt6.cmake

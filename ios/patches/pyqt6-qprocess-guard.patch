@@ -1,0 +1,14 @@
+--- pyqt6-6.11.0/sip/QtCore/qprocess.sip	2026-10-22 07:49:22
++++ pyqt6-6.11.0/sip/QtCore/qprocess.sip	2026-10-22 07:49:22
+@@ -305,9 +305,11 @@
+ };
+ 
+ %End
++%If (PyQt_Process)
+ %If (Qt_6_8_0 -)
+ bool operator!=(const QProcessEnvironment &lhs, const QProcessEnvironment &rhs);
+ %End
+ %If (Qt_6_8_0 -)
+ bool operator==(const QProcessEnvironment &lhs, const QProcessEnvironment &rhs);
+ %End
++%End
