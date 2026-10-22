@@ -45,6 +45,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     std::string home(home_env);
+    // Qt's Android accessibility bridge blocks the UI thread on the Qt thread;
+    // with an accessibility service enabled (a screen reader, a mirroring
+    // tool) that deadlocks against the Java bridge and Qt aborts in its
+    // deadlock protector. Anki's UI lives in native web views, which keep
+    // their own accessibility; Qt's is switched off
+    // (patches/qtforandroid-disable-accessibility.patch).
+    setenv("QT_ANDROID_DISABLE_ACCESSIBILITY", "1", 1);
 
     PyImport_AppendInittab("PyQt6.sip", PyInit_sip);
     PyImport_AppendInittab("PyQt6.QtCore", PyInit_QtCore);

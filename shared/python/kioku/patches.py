@@ -22,7 +22,7 @@ def apply() -> None:
 
     # setupGL() loads libGL.so.1 and configures Qt WebEngine's renderer;
     # neither exists here.
-    aqt.setupGL = lambda pm: None
+    aqt.setupGL = lambda *args, **kwargs: None  # (pm) or (pm, driver)
 
     # Linux dark mode detection runs dbus-send/gsettings
     aqt.theme.get_linux_dark_mode = _dark_mode

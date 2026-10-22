@@ -48,6 +48,7 @@ def install() -> None:
         return
     if not getattr(platform, "dev_allowed", lambda: True)():
         return
+    _watch_for_stack_dumps()
     global _timer
     _timer = QTimer()
     _timer.setInterval(500)
@@ -123,3 +124,29 @@ def widgets() -> str:
 def shot(path: str | None = None) -> str:
     """Save a screenshot of the whole UI, web views included."""
     return platform.screenshot(path or os.path.join(DOCUMENTS, "screenshot.png"))
+
+
+def _watch_for_stack_dumps() -> None:
+    """Documents/.kioku-stack: write every thread's Python stack to
+    Documents/.kioku-stack.out, from its own thread, so a blocked main thread
+    can still be inspected."""
+    import threading
+    import time
+
+    def watch() -> None:
+        path = os.path.join(DOCUMENTS, ".kioku-stack")
+        while True:
+            time.sleep(1)
+            if not os.path.exists(path):
+                continue
+            os.remove(path)
+            names = {t.ident: t.name for t in threading.enumerate()}
+            dump = []
+            for ident, frame in sys._current_frames().items():
+                header = f"--- {names.get(ident, ident)}\n"
+                dump.append(header + "".join(traceback.format_stack(frame)))
+            with open(path + ".out.tmp", "w", encoding="utf8") as f:
+                f.write("\n".join(dump))
+            os.replace(path + ".out.tmp", path + ".out")
+
+    threading.Thread(target=watch, name="kioku-stack", daemon=True).start()

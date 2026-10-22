@@ -122,10 +122,13 @@ public class KiokuBridge {
                 onUiThread(() -> pages.put(id, new Page(id)));
                 return true;
             }
+            // answered from the page's cached values: waiting for the UI thread
+            // here deadlocks when an accessibility service has that thread
+            // waiting on Qt's (seen with a screen mirroring service enabled)
             case "webview.url":
-                return onUiThread(() -> page(a).view.getUrl());
+                return page(a).url;
             case "webview.title":
-                return onUiThread(() -> page(a).view.getTitle());
+                return page(a).title;
             case "darkMode":
                 return (activity.getResources().getConfiguration().uiMode
                         & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
@@ -384,6 +387,9 @@ public class KiokuBridge {
     static class Page {
         final int id;
         final WebView view;
+        /** The main frame's URL and title, kept by the clients below. */
+        volatile String url = "";
+        volatile String title = "";
         /** Tells documentReady() when the main frame's DOM is parsed. */
         private static final String READY = "(function(){if(window.top!==window)return;"
                 + "var f=function(){kiokuAndroid.documentReady();};"
@@ -527,6 +533,8 @@ public class KiokuBridge {
 
             @Override
             public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                Page.this.url = url == null ? "" : url;
+                Page.this.title = "";
                 for (String s : fallbackStart) {
                     v.evaluateJavascript(s, null);
                 }
@@ -535,6 +543,9 @@ public class KiokuBridge {
 
             @Override
             public void onPageFinished(WebView v, String url) {
+                Page.this.url = url == null ? "" : url;
+                String t = v.getTitle();
+                Page.this.title = t == null ? "" : t;
                 for (String s : fallbackEnd) {
                     v.evaluateJavascript(s, null);
                 }
@@ -551,6 +562,11 @@ public class KiokuBridge {
         }
 
         class Chrome extends WebChromeClient {
+            @Override
+            public void onReceivedTitle(WebView v, String t) {
+                title = t == null ? "" : t;
+            }
+
             @Override
             public boolean onConsoleMessage(ConsoleMessage message) {
                 return true;  // the page prelude forwards console output itself

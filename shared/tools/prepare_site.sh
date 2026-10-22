@@ -14,6 +14,8 @@ SITE=$3
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 rm -rf "$SITE" && mkdir -p "$SITE"
+# ANKI_WHEELS: a directory with the anki/aqt wheels of a fork that is not on PyPI
+[ -n "${ANKI_WHEELS:-}" ] && export PIP_FIND_LINKS=$ANKI_WHEELS
 
 grep -vE '^(orjson|rpds-py|markupsafe)==|^ *#' "$SHARED/requirements.txt" > "$TMP/pure.txt"
 "$PYTHON" -m pip download -q --no-deps --only-binary :all: \

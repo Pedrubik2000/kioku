@@ -4,6 +4,8 @@
 
 <h1 align="center">Kioku</h1>
 
+> **This fork** builds Kioku on [kuma3-anki-core](https://github.com/Pedrubik2000/kuma3-anki-core), so the RWKV scheduler runs on the phone: see [docs/kuma3.md](docs/kuma3.md).
+
 <p align="center">
   <b>The real Anki desktop app on your phone.</b><br>
   Add-ons, the card browser and every desktop feature, made for a touch screen.

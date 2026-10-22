@@ -52,7 +52,7 @@ fi
 if [ ! -d anki/rslib ]; then
     # anki/ may already hold target/ alone, restored by CI's Rust cache
     rm -rf anki.new
-    git clone -q --depth 1 --branch "$ANKI_TAG" https://github.com/ankitects/anki anki.new
+    git clone -q --depth 1 --branch "$ANKI_TAG" "${ANKI_REPO:-https://github.com/ankitects/anki}" anki.new
     git -C anki.new submodule update -q --init --depth 1
     [ -d anki/target ] && mv anki/target anki.new/
     rm -rf anki && mv anki.new anki

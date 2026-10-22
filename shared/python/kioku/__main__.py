@@ -53,8 +53,10 @@ def _setup_logging() -> None:
     log = open(LOG_PATH, "w", encoding="utf-8", buffering=1)
     sys.stdout = _Tee(sys.stdout, log)
     sys.stderr = _Tee(sys.stderr, log)
+    # Documents/.kioku-debug: debug-level logging (e.g. the RWKV scheduler's timings)
+    debug = os.path.exists(os.path.join(DOCUMENTS, ".kioku-debug"))
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if debug else logging.INFO,
         stream=sys.stderr,
         format="%(levelname)s %(name)s: %(message)s",
     )

@@ -1,0 +1,39 @@
+diff --git a/src/plugins/platforms/android/androidjniaccessibility.cpp b/src/plugins/platforms/android/androidjniaccessibility.cpp
+index ab6d17a..50e82e1 100644
+--- a/src/plugins/platforms/android/androidjniaccessibility.cpp
++++ b/src/plugins/platforms/android/androidjniaccessibility.cpp
+@@ -68,9 +68,19 @@ namespace QtAndroidAccessibility
+         m_accessibilityContext = new QObject(parent);
+     }
+ 
++    // QT_ANDROID_DISABLE_ACCESSIBILITY=1: answer every accessibility query
++    // without touching the Qt thread. Checked on each call: Java may ask
++    // before the app's main() has set the variable.
++    static bool disabledByEnvironment()
++    {
++        return qEnvironmentVariableIntValue("QT_ANDROID_DISABLE_ACCESSIBILITY") != 0;
++    }
++
+     template <typename Func, typename Ret>
+     void runInObjectContext(QObject *context, Func &&func, Ret *retVal)
+     {
++        if (disabledByEnvironment())
++            return;
+         if (QAndroidPlatformWindow::surfacesCount() == 0) {
+             __android_log_print(ANDROID_LOG_WARN, m_qtTag,
+                 "Could not run accessibility call in object context, no valid surface.");
+@@ -97,11 +107,13 @@ namespace QtAndroidAccessibility
+ 
+     bool isActive()
+     {
+-        return m_accessibilityActivated;
++        return m_accessibilityActivated && !disabledByEnvironment();
+     }
+ 
+     static void setActive(JNIEnv */*env*/, jobject /*thiz*/, jboolean active)
+     {
++        if (disabledByEnvironment())
++            active = false;
+         QMutexLocker lock(QtAndroid::platformInterfaceMutex());
+         QAndroidPlatformIntegration *platformIntegration = QtAndroid::androidPlatformIntegration();
+         m_accessibilityActivated = active;
