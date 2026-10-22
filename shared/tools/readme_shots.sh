@@ -29,6 +29,11 @@ $3" > /dev/null
     cp "$SCREEN" "$OUT/$VARIANT-$1.png" && echo "$OUT/$VARIANT-$1.png"
 }
 
+if [ "$VARIANT" = android ]; then
+    # screencap shows whatever is in front, e.g. the home screen
+    "${ANDROID_SDK_ROOT:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}/platform-tools/adb" \
+        shell am start -n io.ankidesk.kioku/.KiokuActivity > /dev/null 2>&1
+fi
 shot decks 4 'mw.moveToState("deckBrowser")'
 for deck in "$@"; do
     slug=${deck%%=*}
