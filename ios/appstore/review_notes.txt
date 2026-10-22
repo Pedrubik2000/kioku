@@ -1,0 +1,15 @@
+Kioku is an open-source port of the Anki desktop flashcard app (AGPL-3.0, source: https://github.com/krmanik/kioku). No account or login is needed to test it.
+
+How to test:
+1. Open the app. It starts with an empty profile and the "Default" deck.
+2. Tap Add (top bar), type a Front and Back, tap Add, then Close.
+3. Tap the deck, then Study Now, Show Answer and one of the answer buttons.
+4. Tap Browse to see and edit the card, and Stats for statistics.
+Windows open full screen; the "‹ Back" button at the top left closes them.
+
+Optional features:
+- Sync uses the user's own AnkiWeb account (ankiweb.net, run by Ankitects); it is not required.
+- Decks can be imported from .apkg/.colpkg files through the Files app (File > Import).
+- Add-ons: like Anki on the desktop, users can install optional add-ons (Python extensions published on AnkiWeb) by entering an add-on's code under Tools > Add-ons. Nothing is installed unless the user does this. All native code is compiled into the app and signed; add-ons cannot load native code.
+
+The app collects no data: no analytics, ads or tracking.

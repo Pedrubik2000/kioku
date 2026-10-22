@@ -3,7 +3,8 @@
 Texts come from ios/appstore/*.txt, screenshots from build/appstore-shots
 (tools/appstore_shots.py). Sets the App Store listing (en-US: subtitle,
 description, keywords, promotional text, URLs, iPhone screenshots), the
-TestFlight test information and the newest build's "What to Test".
+TestFlight test information, the Beta App Review notes and the newest build's
+"What to Test".
 
 Auth: APP_STORE_KEY_ID / APP_STORE_ISSUER_ID from the environment or .env,
 the key from APP_STORE_KEY_PATH or AuthKey_<key id>.p8 at the repo root.
@@ -140,6 +141,12 @@ def main():
     else:
         create("betaAppLocalizations", {**beta, "locale": LOCALE}, {"app": ("apps", app_id)})
     print("TestFlight: test information")
+
+    # TestFlight: notes for Beta App Review (the contact details are entered by hand)
+    review = api("GET", f"/v1/apps/{app_id}/betaAppReviewDetail")["data"]
+    patch("betaAppReviewDetails", review["id"],
+          {"notes": text("review_notes"), "demoAccountRequired": False})
+    print("TestFlight: review notes")
 
     # TestFlight: "What to Test" of the newest build
     build = api("GET", f"/v1/builds?filter[app]={app_id}&sort=-uploadedDate&limit=1")["data"][0]
