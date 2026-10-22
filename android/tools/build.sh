@@ -31,6 +31,7 @@ BUILD=$ROOT/build/cmake
 "$ROOT/../shared/tools/prepare_site.sh" "$ROOT/.venv/bin/python" "$ROOT/deps/sdist" "$ROOT/build/site"
 
 # package/ plus the Python runtime as an asset
+mkdir -p "$BUILD/package"
 rsync -a --delete --exclude assets "$ROOT/package/" "$BUILD/package/"
 "$ROOT/tools/pack_python.sh" "$ROOT/build/site" "$BUILD/package/assets/python.zip"
 
