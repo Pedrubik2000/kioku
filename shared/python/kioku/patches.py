@@ -42,6 +42,7 @@ def apply() -> None:
 
     _patch_app()
     _patch_audio()
+    _patch_profile_saving()
 
 
 def _dark_mode() -> bool:
@@ -122,6 +123,49 @@ def _patch_app() -> None:
         devtools.install()
 
     aqt.AnkiApp.__init__ = init
+
+
+def _patch_profile_saving() -> None:
+    """Anki writes the profile (AnkiWeb login, preferences) to prefs21.db
+    only when the profile is closed or Anki quits. Phone apps are usually
+    killed in the background instead, which lost the AnkiWeb login after
+    every restart. Save it when the login changes and whenever the app
+    leaves the foreground."""
+    import aqt
+    from aqt.profiles import ProfileManager
+    from aqt.qt import Qt
+
+    def saving(setter):  # type: ignore[no-untyped-def]
+        def set_and_save(self, val):  # type: ignore[no-untyped-def]
+            setter(self, val)
+            _save_profile(self)
+
+        return set_and_save
+
+    for name in ("set_sync_key", "set_sync_username", "set_host_number", "set_current_sync_url"):
+        setattr(ProfileManager, name, saving(getattr(ProfileManager, name)))
+
+    original_init = aqt.AnkiApp.__init__
+
+    def init(self, argv):  # type: ignore[no-untyped-def]
+        original_init(self, argv)
+
+        def on_state(state: Qt.ApplicationState) -> None:
+            if state != Qt.ApplicationState.ApplicationActive and aqt.mw is not None:
+                _save_profile(aqt.mw.pm)
+
+        self.applicationStateChanged.connect(on_state)
+
+    aqt.AnkiApp.__init__ = init
+
+
+def _save_profile(pm) -> None:  # type: ignore[no-untyped-def]
+    if getattr(pm, "profile", None) is None or getattr(pm, "name", None) is None:
+        return
+    try:
+        pm.save()
+    except Exception:
+        logger.exception("saving the profile")
 
 
 def _patch_audio() -> None:
