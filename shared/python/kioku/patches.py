@@ -43,6 +43,7 @@ def apply() -> None:
     _patch_app()
     _patch_audio()
     _patch_profile_saving()
+    _patch_bar_heights()
 
 
 def _dark_mode() -> bool:
@@ -166,6 +167,66 @@ def _save_profile(pm) -> None:  # type: ignore[no-untyped-def]
         pm.save()
     except Exception:
         logger.exception("saving the profile")
+
+
+def _patch_bar_heights() -> None:
+    """The top and bottom bars size themselves from their page's height.
+    When that measurement runs while the page is still loading (seen at
+    start-up while an add-on's dialog was open), it comes back empty; Anki
+    then only resets the main screen, and the top bar stayed half the
+    screen tall. Measure again until the bar has a fixed height."""
+    import aqt.toolbar  # noqa: F401  (its web views override adjustHeightToFit)
+    from aqt.qt import QTimer, QWIDGETSIZE_MAX, sip
+    from aqt.webview import AnkiWebView
+
+    def unsized(web: AnkiWebView) -> bool:
+        return not sip.isdeleted(web) and web.maximumHeight() >= QWIDGETSIZE_MAX
+
+    def retry(web: AnkiWebView) -> None:
+        tries = getattr(web, "_kioku_height_tries", 0)
+        if tries < 5 and unsized(web):
+            web._kioku_height_tries = tries + 1
+            # the view's own method: the top bar's clears a min-height first,
+            # without which it measures the main screen's height
+            web._kioku_retrying = True
+            try:
+                web.adjustHeightToFit()
+            finally:
+                web._kioku_retrying = False
+            QTimer.singleShot(2000, lambda: retry(web))
+
+    def watched(adjust):  # type: ignore[no-untyped-def]
+        def adjust_height_to_fit(self):  # type: ignore[no-untyped-def]
+            if getattr(self, "_kioku_adjusting", False):
+                # a subclass calling super()
+                return adjust(self)
+            if not getattr(self, "_kioku_retrying", False):
+                self._kioku_height_tries = 0
+                QTimer.singleShot(2000, lambda: retry(self))
+            self._kioku_adjusting = True
+            try:
+                return adjust(self)
+            finally:
+                self._kioku_adjusting = False
+
+        return adjust_height_to_fit
+
+    def subclasses(cls: type) -> list[type]:
+        return [cls] + [s for c in cls.__subclasses__() for s in subclasses(c)]
+
+    for cls in subclasses(AnkiWebView):
+        if "adjustHeightToFit" in cls.__dict__:
+            cls.adjustHeightToFit = watched(cls.__dict__["adjustHeightToFit"])
+
+    original_on_height = AnkiWebView._onHeight
+
+    def on_height(self, qvar):  # type: ignore[no-untyped-def]
+        if qvar is None:
+            QTimer.singleShot(300, lambda: retry(self))
+            return
+        original_on_height(self, qvar)
+
+    AnkiWebView._onHeight = on_height
 
 
 def _patch_audio() -> None:

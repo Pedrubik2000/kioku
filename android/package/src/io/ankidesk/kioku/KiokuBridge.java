@@ -169,6 +169,7 @@ public class KiokuBridge {
                 break;
             }
             case "webview.html":
+                page(a).generation++;
                 page(a).view.loadDataWithBaseURL(a.optString("base", null), a.getString("html"),
                         "text/html", "utf-8", null);
                 break;
@@ -203,6 +204,7 @@ public class KiokuBridge {
                 page(a).view.getSettings().setTextZoom((int) Math.round(a.getDouble("factor") * 100));
                 break;
             case "webview.reload":
+                page(a).generation++;
                 page(a).view.reload();
                 break;
             case "webview.stop":
@@ -390,6 +392,8 @@ public class KiokuBridge {
         private final List<ScriptHandler> handlers = new ArrayList<>();
         private final List<String> fallbackStart = new ArrayList<>();
         private final List<String> fallbackEnd = new ArrayList<>();
+        /** Counts loads: each one starts a new document. */
+        volatile int generation;
         /** Document-end scripts for the main frame, run by documentReady(). */
         private final List<String> mainEnd = new ArrayList<>();
         private final Map<Integer, JsResult> confirms = new HashMap<>();
@@ -459,6 +463,7 @@ public class KiokuBridge {
         }
 
         void load(String url, Map<String, String> headers) {
+            generation++;
             approved.add(url);
             view.loadUrl(url, headers);
         }
@@ -491,9 +496,18 @@ public class KiokuBridge {
                 ui.post(Page.this::documentReady);
             }
 
+            /** Read by the bridge script when a document starts (see call()). */
             @JavascriptInterface
-            public void call(int callId, String text) {
-                event(obj("type", "channel", "id", id, "call", callId, "text", text));
+            public int generation() {
+                return generation;
+            }
+
+            @JavascriptInterface
+            public void call(int callId, String text, int gen) {
+                // calls still arriving from the previous document (e.g. its
+                // "domDone") must not count for the one now loading
+                event(obj("type", "channel", "id", id, "call", callId, "text", text,
+                        "stale", gen != generation));
             }
         }
 

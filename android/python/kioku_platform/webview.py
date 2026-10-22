@@ -45,14 +45,14 @@ class WebView:
     BRIDGE = r"""
 (function () {
     if (window.__kiokuNative) return;
-    var pending = {}, next = 1;
+    var pending = {}, next = 1, generation = kiokuAndroid.generation();
     window.__kiokuNative = {
         send: function (name, text) { kiokuAndroid.send(name, text); },
         call: function (text) {
             return new Promise(function (resolve, reject) {
                 var id = next++;
                 pending[id] = [resolve, reject];
-                kiokuAndroid.call(id, text);
+                kiokuAndroid.call(id, text, generation);
             });
         }
     };
@@ -202,6 +202,11 @@ class WebView:
                 bridge.call("webview.confirmResult", id=self.id, token=event["token"], ok=ok)
 
     def _channel(self, event: dict) -> None:
+        if event.get("stale"):
+            # from the previous document: Anki would take its "domDone" for
+            # the page now loading and run queued JavaScript on the old one
+            bridge.call("webview.reply", id=self.id, call=event["call"], ok=True, value="null")
+            return
         try:
             call = json.loads(event["text"])
             result = self.on_channel_call(call["obj"], call["method"], call.get("args", []))
