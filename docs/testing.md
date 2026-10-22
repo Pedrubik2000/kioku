@@ -16,7 +16,12 @@ scripts) with a command channel into the running app
 
 Code run through `devcmd.sh` runs on the main thread: anything that waits for
 the main thread (AnkiConnect requests, for example) has to run in a
-`threading.Thread`.
+`threading.Thread`. A command that opens a modal dialog (a prompt, a message
+box) and then waits blocks the channel until the dialog closes; open modal
+dialogs with `QTimer.singleShot(0, …)` and return, then handle them in the
+next command. On iOS, `devicectl` sometimes reports a failed copy although the
+command arrived (the app had already picked the file up); `devcmd.sh` waits
+for the output anyway.
 
 Test collections: real desktop profiles exported with Anki 26.8.1's own
 library (`export_collection_package`) from an APFS clone (`cp -c`) of the
@@ -37,7 +42,7 @@ card and review counts identical to the desktop.
 | Card audio (mp3) | works, including interrupting and the next card |
 | Card audio (ogg/opus) | not supported yet |
 | Statistics (new stats page, charts, calendar) | works |
-| Statistics: Save PDF | not implemented |
+| Statistics: Save PDF | not implemented: the button does nothing (no file, no message) |
 | Browse | works; sidebar behind a title bar button in portrait |
 | Add, editor | works |
 | Image occlusion: mask editor with an image | works (masks need touch testing) |
@@ -46,7 +51,7 @@ card and review counts identical to the desktop.
 | Export | writes to Documents/Exports |
 | Preferences, Note Types, Deck Options, Filtered Deck, Study Deck, Add-ons, About | open, fit the screen, close with ‹ Back |
 | HTTPS (add-on downloads) | works after the truststore fix |
-| AnkiWeb sync | not tested yet |
+| AnkiWeb sync | works (physical-device round below): login, full download, media sync, two-way changes, conflict choice |
 
 Popups (shared code, after the Android round): the AnkiWeb login is a card
 above the keyboard (iOS reports the keyboard in points, as assumed);
@@ -138,3 +143,134 @@ All 15 installed from AnkiWeb inside the app and load without errors.
 | AnkiWebView Inspector | loads; needs Qt WebEngine dev tools (use chrome://inspect: web views are debuggable) |
 | Color Confirmation | works (popup after answering) |
 | Japanese Support | works: Kanji Stats opens with statistics; MeCab readings to check |
+
+## Results: physical devices, user flows (October 22, 2026)
+
+iPhone 15 Pro Max (iOS 26) and Samsung Galaxy M30s (Android 11, 3.6 GB RAM),
+both on the builds installed that day (no rebuild). On the Samsung every step
+was done with real taps, swipes and the on-screen keyboard (`adb shell input`),
+the way a user would; on the iPhone, where input can't be injected, with
+`devcmd.sh` clicking the same buttons and links (Qt events, JavaScript
+`click()` in the web views) and checking screenshots. Collections: the
+258,430-card profile (27k media files) and an AnkiWeb account with 39,754
+cards and 13,677 media files.
+
+✅ works, ⚠️ works with a problem, ❌ doesn't work.
+
+### Getting started
+
+| Area | iOS | Android |
+| --- | --- | --- |
+| Cold start to the deck list (258k cards, one add-on) | ✅ ~6 s | ✅ ~17 s |
+| Import a .colpkg with the system file picker (290 MB, 27k media) | not driven (picker can't be scripted) | ✅ about 15 min on the M30s; "replace collection" box, progress, all cards and media |
+| Cancel the file picker | – | ✅ |
+| Profiles: create, switch (File › Switch Profile), open | ✅ | ✅ |
+| File › Exit | ✅ app closes | ✅ app closes, no crash; relaunch from the launcher works |
+| Last profile and AnkiWeb login kept after a restart | ✅ | ✅ |
+
+### Studying
+
+| Area | iOS | Android |
+| --- | --- | --- |
+| Deck list: open a deck, overview, Study Now | ✅ | ✅ real taps |
+| Card JavaScript (tap-to-order characters, hint button) | ✅ | ✅ real taps |
+| Show Answer, answer buttons with intervals, revlog written | ✅ | ✅ |
+| Undo after answering | ✅ | not repeated |
+| Flag, mark, bury, suspend (and undo) | ✅ | not repeated |
+| Card info (forgetting curve) | ✅ | not repeated |
+| Edit current card, change a field, saved | ✅ | not repeated (editing tested in Add and Browse) |
+| Card audio (mp3), replay button | ✅ AVFoundation | ✅ MediaPlayer |
+| `{{tts}}` text-to-speech | ❌ no TTS player | ❌ no TTS player |
+| Links in cards (`<a href>`) | – | ✅ open the system browser chooser |
+| Landscape | not driven | ✅ layout adapts; drag to scroll works |
+| Back key while reviewing | – | ⚠️ moves the app to the background (AnkiDroid users expect the deck list) |
+| Status and navigation bars after another app's popup (browser chooser) | – | ❌ both bars stay hidden until the app restarts (see below) |
+
+### Adding and editing
+
+| Area | iOS | Android |
+| --- | --- | --- |
+| Add: type into fields with the keyboard, Add | ✅ | ✅ the window shrinks above the keyboard |
+| Note type and deck choosers, typing in the filter | ✅ | ✅ |
+| History button label | ✅ "History ▾" | ⚠️ "History ▯" (the ▾ glyph is missing from the font) |
+| Image occlusion: pick an image, draw a mask by touch, Add | not driven (picker) | ✅ |
+| Image picker filtered to images | – | ⚠️ shows every file type |
+| Card types editor (Cards…) | ⚠️ opens, cramped in portrait | ⚠️ opens, cramped in portrait (labels cut: "Fror", "Bac") |
+
+### Browse
+
+| Area | iOS | Android |
+| --- | --- | --- |
+| Open, search, select a row, editor below the table | ✅ | ✅ |
+| Searching with the keyboard's Enter key | ✅ | ❌ the keyboard shows "Next" and moves the focus instead of searching; fixed in `windows.py` (needs a rebuild, see fixes.md) |
+| Sidebar button, sidebar search | ⚠️ works; the sidebar squeezes the editor (Back field under Tags) | ✅ |
+| Preview, Change Deck, Delete notes | ✅ | not repeated |
+| Window title | ⚠️ long titles are cut at both ends ("rowse (24 of 24 cards selectec") | ✅ |
+
+### Decks, statistics, tools
+
+| Area | iOS | Android |
+| --- | --- | --- |
+| Create Deck prompt (card above the keyboard) | ✅ | ✅ with the Enter-key fix; without it the keyboard's Next only moves to the buttons |
+| Deck gear menu: rename, options, delete | ✅ | not repeated |
+| Deck options: change a limit, Save | ✅ | opens (`sweep.sh`); saving not repeated |
+| Filtered deck: build, study, delete | ✅ | ✅ |
+| Statistics page | ✅ | ✅ |
+| Statistics: Save PDF | ❌ nothing happens | ⚠️ PDF written to `Exports/`, but no message says so |
+| Export (.colpkg) | ✅ Documents/Exports, visible in Files | ⚠️ written to `Android/data/io.ankidesk.kioku/files/Exports`, which Android 11+ hides from most file managers; there is no share option |
+| Create Backup | ✅ | ✅ |
+| Check Database, Check Media, Empty Cards | ✅ | ✅ (identical results on both) |
+| Preferences: switch to Light and back | ✅ | ✅ |
+| Every main window full screen, nothing wider than the screen (`sweep.sh`) | ✅ 12 windows | ✅ 12 windows |
+| Review Heatmap on the deck list | ⚠️ slightly wider than the screen | ⚠️ slightly wider than the screen |
+
+### Add-ons
+
+| Area | iOS | Android |
+| --- | --- | --- |
+| Tools › Add-ons › Get Add-ons, code 1771074083 (Review Heatmap) | ✅ downloaded and installed | ✅ |
+| Add-on active after restarting the app | ✅ | ✅ |
+
+### AnkiWeb sync (both phones on the same account)
+
+Tested in a new, empty profile on each phone so the account's data was never
+uploaded over.
+
+| Step | iOS | Android |
+| --- | --- | --- |
+| Login card, typing email and password, OK | ✅ | ✅ |
+| Empty profile: "Download from AnkiWeb?", full download (39,754 cards) | ✅ | ✅ |
+| Media sync (13,677 files, about 15 files/s) | ✅ same files on both | ✅ |
+| Sync while media is still syncing | shows the media sync log (as on the desktop) | same |
+| Note added on Android appears on iOS after syncing both | ✅ | ✅ |
+| Field edited on iOS appears on Android | ✅ | ✅ |
+| Same note edited on both before syncing | ✅ the later edit wins on both, no prompt | ✅ |
+| Note deleted on Android disappears on iOS | ✅ | ✅ |
+| Schema change (new field) → conflict box: Upload / Download / Cancel | ⚠️ box fills the screen with a large empty gap | ✅ card with stacked buttons |
+| Choosing Download resolves the conflict | ✅ | ✅ |
+| Auto sync when opening and closing a profile | ✅ | ✅ |
+
+Check Database marks the collection for a full sync (as on the desktop), so
+the next sync asks Upload/Download again.
+
+### Open problems found in this round
+
+- **Android: keyboard Enter = "Next".** Qt reports `EnterKeyNext` for
+  single-line fields, so Browse's search, prompts and the login can't be
+  submitted from the keyboard. Fixed in `shared/python/kioku/windows.py`
+  (`EnterKeyFilter`); verified by loading it into the running app; ships with
+  the next build.
+- **Android: system bars disappear** after a popup from another app (the
+  "Open with" browser chooser). Qt 6.11's
+  `QtWindowInsetsController.isFullScreen()` (API 30+) treats "status bar not
+  visible" as full screen when the window regains focus, and
+  `restoreFullScreenVisibility()` then hides the bars for good. Needs an
+  `onWindowFocusChanged` override in `KiokuActivity` that shows the bars again
+  (Kioku never uses full screen).
+- **Android: exports are hard to reach** on Android 11+ (`Android/data`).
+  A share sheet or a document provider would fix it.
+- **iOS: Save PDF** does nothing (WKWebView's `createPDF` could implement it).
+- **Both: `{{tts}}`** is silent; AVSpeechSynthesizer / Android TextToSpeech
+  players are missing.
+- Cosmetic: Browse title cut on iOS, "History ▯" glyph on Android, cramped
+  card types editor, iOS conflict box layout, Review Heatmap a little too wide.

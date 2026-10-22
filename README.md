@@ -79,14 +79,18 @@ More screenshots: [docs/screenshots.md](docs/screenshots.md).
 | **Windows** | Full screen, ‹ Back closes, popups as cards above the keyboard | Full screen, Back key closes, popups as cards above the keyboard | Desktop windows, a dock, touch or mouse pad mode |
 | **Add-ons** | Yes; 15 tested. No subprocesses (MeCab readings in Japanese Support) | Yes; 15 popular ones tested | Yes, as on Linux |
 | **Card audio** | mp3; ogg/opus not yet | mp3, wav, ogg, opus | Not tested |
-| **Statistics: Save PDF** | Not yet | Yes | Not tested |
-| **AnkiWeb sync** | Not tested yet | Yes, media too; login kept across restarts | Yes |
-| **Your files** | Files app → Kioku (Anki2/, Exports/) | `Android/data/io.ankidesk.kioku/files` (Import/, Exports/) | Import from Downloads, share decks to Kioku, link phone folders |
+| **Text-to-speech** (`{{tts}}`) | Not yet | Not yet | Not tested |
+| **Statistics: Save PDF** | Not yet | Yes (to Exports/) | Not tested |
+| **AnkiWeb sync** | Yes, media too; login kept across restarts | Yes, media too; login kept across restarts | Yes |
+| **Your files** | Files app → Kioku (Anki2/, Exports/) | Import with the system file picker; exports go to `Android/data/io.ankidesk.kioku/files/Exports` (on Android 11+ reach it over USB) | Import from Downloads, share decks to Kioku, link phone folders |
 | **Other Linux apps** | No | No | Yes: file manager, terminal, web browser… from Termux |
 | **Install** | AltStore source, or sideload the unsigned IPA | APK from Releases | APK from Releases |
 | **Pick it if** | You have an iPhone or iPad | You want a light, fast app that feels native | You want the full desktop, Linux tools and every add-on |
 
-Test results per area and add-on: [docs/testing.md](docs/testing.md).
+Test results per area and add-on: [docs/testing.md](docs/testing.md). The
+native variants were last tested end to end on an iPhone 15 Pro Max (iOS 26)
+and a Samsung Galaxy M30s (Android 11), both syncing with the same AnkiWeb
+account.
 
 ## Features
 
@@ -118,6 +122,24 @@ Termux variant only:
 - **Linux apps on demand** from the Termux repositories.
 - **Recovers by itself**: Retry, Safe mode (no add-ons), Repair runtime (decks
   kept) or Share log when start-up fails.
+
+## Known issues
+
+Native variants, as of the last device test ([details](docs/testing.md)):
+
+- **Android:** the keyboard's Enter key shows "Next": a Browse search can't be
+  started from the keyboard, and prompts need their OK button (fixed for the
+  next release).
+- **Android:** after a link in a card opens the "Open with" chooser, the status
+  and navigation bars stay hidden until Kioku is restarted.
+- **Android:** exported files and PDFs go to the app's own folder, which
+  Android 11 and later hide from most file managers; copy them over USB.
+- **Android:** Back while reviewing leaves the app instead of returning to the
+  deck list.
+- **iPhone:** Save PDF in Statistics does nothing yet; Ogg/Opus card audio is
+  silent.
+- **Both:** `{{tts}}` text-to-speech is silent. The card types editor is
+  cramped in portrait.
 
 ## Install
 
