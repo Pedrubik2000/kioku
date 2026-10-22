@@ -30,6 +30,7 @@ for p in "$ROOT/patches/"qtforandroid-*.patch; do
     git -C "$SRC" apply "$p"
 done
 
+mkdir -p "$ROOT/build"
 "$QT/android_arm64_v8a/bin/qt-cmake" -S "$ROOT/qtplugin" -B "$BUILD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release -DQT_HOST_PATH="$QT/$HOST_DIR" -DQTBASE_SRC="$SRC" \
     -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" -DANDROID_NDK_ROOT="$ANDROID_NDK_ROOT" \
