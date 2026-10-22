@@ -40,8 +40,12 @@ if [ ! -d python-ios/Python.xcframework ]; then
 fi
 
 if [ ! -d anki/rslib ]; then
-    git clone -q --depth 1 --branch "$ANKI_TAG" https://github.com/ankitects/anki anki
-    git -C anki submodule update -q --init --depth 1
+    # anki/ may already hold target/ alone, restored by CI's Rust cache
+    rm -rf anki.new
+    git clone -q --depth 1 --branch "$ANKI_TAG" https://github.com/ankitects/anki anki.new
+    git -C anki.new submodule update -q --init --depth 1
+    [ -d anki/target ] && mv anki/target anki.new/
+    rm -rf anki && mv anki.new anki
 fi
 
 sdist() {  # sdist <pypi name> <version> <unpacked dir>
